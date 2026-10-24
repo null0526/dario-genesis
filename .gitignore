@@ -5,3 +5,6 @@ keyframes.jpg
 stills/
 __pycache__/
 最小示例/tts/
+英文版/tts/
+英文版/en.ass
+英文版/voice_en.json
