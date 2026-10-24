@@ -68,4 +68,4 @@ python render.py 03-黑洞与回信 video              # 逐帧渲染成 silent.
 
 视频、封面和旁白文稿：CC BY-NC-SA 4.0；代码：MIT；其余文档：CC BY 4.0。详见 [LICENSE.md](LICENSE.md)。
 
-本片是虚构讽刺作品，与 Anthropic 公司无关，不构成推广。
+本片是虚构作品，与 Anthropic 公司无关，不构成推广。
