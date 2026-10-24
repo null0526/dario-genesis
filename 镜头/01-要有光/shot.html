@@ -1,0 +1,298 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>要有光 · 第一次 Vibe Coding</title>
+<style>
+@font-face{font-family:"FSerif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun")}
+@font-face{font-family:"FSans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei")}
+@font-face{font-family:"AMono";src:local("JetBrains Mono"),local("Cascadia Mono"),local("Consolas"),local("Menlo")}
+html,body{margin:0;background:#000}canvas{display:block}</style>
+<style id="ch1-fonts">
+@font-face{font-family:"Anthropic Serif";src:local("Source Serif 4"),local("Noto Serif"),local("Georgia");}
+@font-face{font-family:"Anthropic Sans";src:local("Inter"),local("Noto Sans"),local("Helvetica Neue"),local("Arial");}
+@font-face{font-family:"Anthropic Mono";src:local("JetBrains Mono"),local("Cascadia Mono"),local("Consolas"),local("Menlo");}
+
+@font-face{font-family:"FSerif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun");font-weight:400;font-display:block;}
+@font-face{font-family:"Film Serif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun");font-weight:400;font-display:block;}
+@font-face{font-family:"Noto Serif CJK SC";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun");font-weight:400;font-display:block;}
+@font-face{font-family:"FSans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:400;font-display:block;}
+@font-face{font-family:"Film Sans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:400;font-display:block;}
+@font-face{font-family:"Noto Sans CJK SC";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:400;font-display:block;}
+@font-face{font-family:"DejaVu Sans Mono";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:400;font-display:block;}
+</style>
+</head>
+<body><canvas id="gl"></canvas>
+<script>/* 开源版：字体已换成本机字体（local()），本机缺某款字体时不让页面卡住，回退到系统字体 */
+(()=>{const L=FontFace.prototype.load;FontFace.prototype.load=function(){return L.call(this).catch(()=>this)};const D=document.fonts.load.bind(document.fonts);document.fonts.load=(...a)=>D(...a).catch(()=>[]);})();</script>
+<script>
+/* ============================================================
+   要有光 · 第一次 Vibe Coding（C 类光场，接开场案卷）
+   上一镜最后一帧：黑底中央只剩“要有光”。本镜它变成上帝输入的一句需求；
+   波长、光强、渲染参数三栏空着；需求发出，黑暗里点起一点光，却只是灰白、发抖；
+   Claude 那边三栏逐项补齐、写完代码，每补一项光就多一样东西（光谱、强度、全局照明），
+   最后光暖下来、落到地平线，叠化成第三天第一帧。
+   管线沿用后羿/嫦娥（HDR 光缓冲＋bloom＋ACES＋颗粒＋2D 界面层）。t = A 配音绝对秒 − 27.0。
+   ============================================================ */
+const Q = new URLSearchParams(location.search);
+const TIME_SCALE = +(Q.get('speed') || 1);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080);
+const FPS = 30, SUB = +(Q.get('sub') || 8), SHUTTER = 0.5, SUBS = Q.get('subs') !== '0';
+const SERIF = '"FSerif"', SANS = '"FSans"', MONO = '"AMono", "FSans"';
+const A0 = 27.0, DURATION = 15.45;
+const a = x => x - A0;   // A 绝对秒 → 本镜秒
+const EV = { say: a(27.20), box: a(27.35), p1: a(29.37), p2: a(30.24), p3: a(31.12), send: a(32.75), ignite: a(34.58), success: a(36.25),
+  claude: a(36.95), f1: a(37.37), f2: a(38.33), f3: a(38.69), code: a(39.43), done: a(39.87), vibe: a(40.64), settle: a(40.70), end: DURATION };
+const CAPTIONS = [['“神说，', 27.2, 28.189], ['要有光。”', 28.219, 29.014], ['没有波长，', 29.367, 30.211], ['没有光强，', 30.241, 31.09],
+  ['没有渲染参数。', 31.12, 32.218], ['上帝只负责提需求，', 32.568, 34.26], ['全局光照能初始化成功，', 34.58, 36.92], ['全靠Claude替他补齐细节，', 36.95, 39.403],
+  ['写完代码。', 39.433, 40.238], ['这是宇宙第一次Vibe Coding。', 40.638, 42.45]].map(([s, b, e]) => [s, a(b), a(e)]);
+
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+const ease = x => (x = clamp(x), x * x * (3 - 2 * x));
+const eo3 = x => 1 - (1 - clamp(x)) ** 3;
+const eio = x => (x = clamp(x), x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+const mixv = (u, v, k) => u + (v - u) * k;
+
+// 光心：画面中央 → 第三天太阳位置 (1130, 600)；p 坐标 = (像素 − 中心)/H，y 向上
+const C_END = [(1130 - 960) / 1080, -(600 - 540) / 1080], HORIZON = -(696 - 540) / 1080;
+function lightState(t) {
+  const ig = ease((t - EV.ignite) / 0.5);
+  const spec = ease((t - EV.f1) / 0.5), gain = ease((t - EV.f2) / 0.45), rend = ease((t - EV.f3) / 0.9);
+  const settle = eio((t - EV.settle) / 1.6);
+  const R = ig * (0.10 + 0.08 * ease((t - EV.ignite - 0.4) / 1.6)) + gain * 1.4 * eo3((t - EV.f2) / 1.4);
+  const cx = mixv(0, C_END[0], settle), cy = mixv(0.035, C_END[1], settle);
+  const lines = 1 - ease((t - EV.settle - 0.2) / 1.3);
+  const ground = mixv(-0.75, HORIZON, eo3((t - EV.settle - 0.25) / 1.4));
+  return { ig, spec, gain, rend, settle, R, cx, cy, lines, ground };
+}
+
+// ---------- GL ----------
+const cv = document.getElementById('gl'); cv.width = W; cv.height = H;
+const gl = cv.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false });
+gl.getExtension('EXT_color_buffer_float'); gl.getExtension('EXT_float_blend'); gl.getExtension('OES_texture_float_linear');
+const VS = `#version 300 es
+in vec2 a; out vec2 uv; void main(){ uv=a*.5+.5; gl_Position=vec4(a,0,1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float a=.5,s=0.; for(int i=0;i<5;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.1,9.7); a*=.5; } return s; }
+`;
+const SCENE = COMMON + `
+uniform vec2 uRes; uniform float uT;
+uniform vec4 uInit;   // 点亮, 光谱, 光强, 渲染
+uniform vec4 uGeo;    // 光心 xy, 波前半径, 线可见度
+uniform vec2 uEnd;    // 暖化, 地平线 y
+out vec4 o;
+vec3 spectrum(float x){   // 0 紫 … 1 红
+  return clamp(vec3(abs(x*6.-3.)-1.2, 2.-abs(x*6.-2.6), 2.-abs(x*6.-1.2)) , 0., 1.).bgr*vec3(1.,.9,1.) ;
+}
+void main(){
+  vec2 p = (gl_FragCoord.xy - .5*uRes)/uRes.y; float px = 1./uRes.y;
+  vec2 C = uGeo.xy; vec2 dv = p-C; float d = length(dv);
+  float ig = uInit.x, spec = uInit.y, gain = uInit.z, rend = uInit.w;
+  vec3 col = vec3(0.0035,0.003,0.0028);
+  // 未补参数时：光弱、灰白、抖
+  float flick = 0.55 + 0.45*sin(uT*41.)*sin(uT*17.3+1.3);
+  float I = ig*mix(0.22*flick, 1.0, gain)*mix(1., 0.55, uEnd.x);
+  float wf = smoothstep(uGeo.z, uGeo.z-0.05, d);              // 波前以内才有光
+  vec3 grey = vec3(0.80,0.80,0.78), warm = vec3(1.0,0.70,0.40);
+  // 同心线场：从光心往外推
+  float freq = mix(34., 46., gain);
+  float f = d*freq - uT*mix(0.6, 1.6, gain);
+  float ang = atan(dv.y, dv.x);
+  float wob = (vnoise(vec2(ang*3.0+2., d*4.-uT*.2))-.5)*0.25*(1.-gain*0.6);
+  float q = abs(fract(f+wob+.5)-.5);
+  float lw = mix(0.9, 0.55, gain);
+  float line = exp(-pow(q/freq/px, 2.)/lw);
+  // 补上波长以后：波前边缘带一圈色散（像棱镜的边），里面是暖白
+  float edge = clamp((uGeo.z - d)/0.16, 0., 1.);
+  vec3 white = vec3(1.0,0.94,0.84);
+  vec3 lc = mix(grey, white, spec);
+  lc = mix(lc, spectrum(edge), spec*0.85*(1.-smoothstep(0.6,1.,edge)));
+  lc = mix(lc, warm, uEnd.x);
+  float fall = 0.06/(d+0.05);
+  col += lc*line*wf*I*fall*1.6*uGeo.w*(0.30+0.70*exp(-d*3.5) + 0.8*spec*(1.-smoothstep(0.,0.35,edge)));
+  // 光晕与核心
+  vec3 gc = mix(grey, mix(vec3(1.0,0.93,0.82), warm, uEnd.x), max(spec, uEnd.x));
+  col += gc*I*(exp(-pow(d/0.0065,2.))*9. + exp(-d/0.05)*0.55 + exp(-d/0.22)*0.22*gain);
+  // 渲染参数：全局照明——光线、体积雾、照到整个画面
+  if(rend > 0.001){
+    vec2 dir = dv/max(d,1e-4);
+    float rays = pow(fbm(dir*2.2+vec2(3.1,1.7)), 2.)*0.9 + pow(vnoise(dir*6.0+vec2(uT*0.05, 7.)), 3.)*0.3;
+    float haze = fbm(p*2.2+vec2(uT*0.03, 0.))*0.7+0.3;
+    col += mix(white, gc, 0.5)*rend*I*(rays*exp(-d*2.6)*0.22*(1.-uEnd.x) + haze*exp(-d*1.6)*0.20 + 0.010);
+  }
+  // 地平线：暗地从下方升起
+  float gy = uEnd.y + 0.004*sin(p.x*9.)+0.006*vnoise(vec2(p.x*14.,1.));
+  float below = smoothstep(gy+px*1.5, gy-px*1.5, p.y);
+  col = mix(col, vec3(0.003,0.0022,0.0015)+col*0.015, below);
+  col += warm*exp(-pow((p.y-gy)/px,2.)/2.)*exp(-abs(p.x-C.x)*3.)*0.35*uEnd.x;
+  o = vec4(col, 1.);
+}`;
+const BRIGHT = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uTexel; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.);
+  for(int i=0;i<4;i++){ vec2 off=vec2(float(i%2),float(i/2))*2.-1.; s+=texture(uSrc, uv+off*uTexel).rgb; }
+  s*=0.25; o=vec4(max(s-vec3(0.85),0.),1.); }`;
+const BLUR = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uDir; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.); float wsum=0.;
+  for(int i=-8;i<=8;i++){ float w=exp(-float(i*i)/18.); s+=texture(uSrc, uv+uDir*float(i)).rgb*w; wsum+=w; }
+  o=vec4(s/wsum,1.); }`;
+const FINAL = COMMON + `
+uniform sampler2D uLight, uB1, uB2, uUI, uEndImg; uniform vec2 uRes; uniform float uFrame; uniform float uMix; in vec2 uv; out vec4 o;
+vec3 aces(vec3 x){ return clamp(x*(2.51*x+.03)/(x*(2.43*x+.59)+.14),0.,1.); }
+void main(){
+  vec2 c = uv-.5;
+  vec2 ca = c*0.0022;
+  vec3 L = vec3(texture(uLight, uv+ca).r, texture(uLight, uv).g, texture(uLight, uv-ca).b);
+  vec3 bloom = texture(uB1,uv).rgb*0.7 + texture(uB2,uv).rgb*1.1;
+  vec3 col = aces((L + bloom*0.75)*1.1);
+  col = pow(col, vec3(1./2.2));
+  col *= 1.-0.42*dot(c*vec2(1.25,1.),c*vec2(1.25,1.))*1.6;
+  if(uMix > 0.){ vec3 e = texture(uEndImg, uv).rgb; col = mix(col, e, uMix); }
+  vec4 ui = texture(uUI, uv); col = mix(col, ui.rgb, ui.a);
+  vec2 fp = gl_FragCoord.xy;
+  float g = hash(fp + vec2(uFrame*17.31, uFrame*7.73)) + hash(fp*1.37 + uFrame*3.1) - 1.;
+  float lum = dot(col, vec3(.299,.587,.114));
+  col += g * 0.040*(0.35+0.65*sqrt(max(0.,1.-lum)))*(1.-uMix);
+  o = vec4(col,1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(fs) { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, 'a'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace('[0]', '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u }; }
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+function tex(w, h, fmt = gl.RGBA16F, type = gl.HALF_FLOAT, base = gl.RGBA) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, fmt, w, h, 0, base, type, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t; }
+function fbo(t) { const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return f; }
+const P_SCENE = prog(SCENE), P_BRIGHT = prog(BRIGHT), P_BLUR = prog(BLUR), P_FINAL = prog(FINAL);
+const tL = tex(W, H, gl.RGBA32F, gl.FLOAT), F_ACC = fbo(tL);
+const q = [W >> 2, H >> 2], e = [W >> 3, H >> 3];
+const tQ1 = tex(...q), tQ2 = tex(...q), tE1 = tex(...e), tE2 = tex(...e);
+const F_Q1 = fbo(tQ1), F_Q2 = fbo(tQ2), F_E1 = fbo(tE1), F_E2 = fbo(tE2);
+const tUI = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE), tEnd = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE);
+
+// ---------- 界面层 ----------
+const uiCanvas = document.createElement('canvas'); uiCanvas.width = W; uiCanvas.height = H;
+const CREAM = '239,230,210', GREYC = '150,144,132', WARMC = '236,190,130';
+const PARAMS = ['波长', '光强', '渲染参数'];
+const FILLS = [['380–750 nm', EV.f1], ['1.0 · 自适应曝光', EV.f2], ['路径追踪 · 全局光照', EV.f3]];
+const CODE = ['const light = new Light({', '  spectrum: [380, 750],', '  intensity: auto,', '  gi: "path-traced" })', 'light.init()   ✓'];
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function drawUI(t) {
+  const g = uiCanvas.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  const s = H / 1080; g.scale(s, s);
+  const out = 1 - ease((t - EV.vibe) / 0.5);
+  // —— 上帝的需求：从上一镜的“要有光”变成输入框 ——
+  const mv = eio((t - EV.box) / 0.75);                  // 大字缩进输入框
+  const send = eio((t - EV.send) / 0.7);                // 发出后整块缩到左上角
+  const boxA = ease((t - EV.box - 0.2) / 0.4);
+  // 面板几何（未发出时居中；发出后左上角 0.5 倍）
+  const PW = 820, PX = 960 - PW / 2, PY = 400;
+  g.save();
+  const sc = mixv(1, 0.62, send), tx = mixv(0, 70 - PX * 0.62, send), ty = mixv(0, 70 - (PY - 50) * 0.62, send);
+  g.translate(tx, ty); g.scale(sc, sc);
+  g.globalAlpha = out;
+  if (boxA > 0) {
+    g.globalAlpha = out * boxA;
+    g.font = `26px ${SANS}`; g.fillStyle = `rgba(${GREYC},1)`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText('上帝', PX + 4, PY - 18);
+    rrect(g, PX, PY, PW, 120, 16); g.fillStyle = 'rgba(14,12,10,0.55)'; g.fill(); g.lineWidth = 1.6; g.strokeStyle = `rgba(${CREAM},0.45)`; g.stroke();
+    g.globalAlpha = out;
+  }
+  // “要有光”：从画面中央 122px 移到框内 64px
+  { const fs = mixv(122.4, 64, mv), x = mixv(960, PX + 40 + 96, mv), y = mixv(540, PY + 62, mv), rot = mixv(-0.01, 0, mv);
+    g.save(); g.translate(x, y); g.rotate(rot); g.font = `${fs}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = `rgba(${CREAM},1)`; g.fillText('要有光', 0, 0); g.restore();
+    if (boxA > 0.5 && t < EV.send && Math.floor(t * 2.2) % 2 === 0) { g.fillStyle = `rgba(${CREAM},0.85)`; g.fillRect(PX + 40 + 200, PY + 34, 3, 56); } }
+  // 三栏空参数
+  PARAMS.forEach((k, i) => { const ta = ease((t - [EV.p1, EV.p2, EV.p3][i]) / 0.18); if (ta <= 0) return;
+    const y = PY + 200 + i * 66; g.globalAlpha = out * ta;
+    g.font = `30px ${SANS}`; g.fillStyle = `rgba(${GREYC},1)`; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(k, PX + 40, y);
+    g.font = `30px ${MONO}`; g.fillStyle = `rgba(${GREYC},0.8)`; g.fillText('—', PX + 230, y);
+    g.font = `24px ${SANS}`; g.fillStyle = `rgba(${GREYC},0.7)`; g.textAlign = 'right'; g.fillText('未指定', PX + PW - 30, y);
+    g.strokeStyle = `rgba(${GREYC},0.25)`; g.lineWidth = 1; g.beginPath(); g.moveTo(PX + 30, y + 30); g.lineTo(PX + PW - 20, y + 30); g.stroke(); });
+  // 发出的一瞬：框闪一下
+  const fl = t > EV.send ? Math.exp(-(t - EV.send) * 9) : 0;
+  if (fl > 0.02) { g.globalAlpha = out * fl; rrect(g, PX, PY, PW, 120, 16); g.lineWidth = 3; g.strokeStyle = `rgba(${CREAM},1)`; g.stroke(); }
+  g.restore();
+  // 初始化状态（光心下方小字）
+  const st = ease((t - EV.ignite - 0.3) / 0.3) * (1 - ease((t - EV.f2) / 0.3));
+  if (st > 0) { g.globalAlpha = st * out; g.font = `28px ${MONO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = `rgba(${GREYC},1)`;
+    const dots = '.'.repeat(1 + Math.floor(t * 3) % 3); g.fillText(`light.init${t < EV.claude ? dots : ' …'}`, 960, 640); }
+  // —— Claude：同样三栏，逐项补齐，写代码 ——
+  const ca = ease((t - EV.claude) / 0.35) * out;
+  if (ca > 0) {
+    const CX = 1850 - 560, CY = 66;
+    g.globalAlpha = ca; g.font = `26px ${SANS}`; g.fillStyle = `rgba(${WARMC},1)`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText('Claude', CX + 4, CY + 22);
+    rrect(g, CX, CY + 40, 560, 400, 14); g.fillStyle = 'rgba(14,12,10,0.55)'; g.fill(); g.lineWidth = 1.4; g.strokeStyle = `rgba(${WARMC},0.45)`; g.stroke();
+    PARAMS.forEach((k, i) => { const y = CY + 84 + i * 50, [v, tf] = FILLS[i], fa = ease((t - tf) / 0.25);
+      g.font = `24px ${SANS}`; g.fillStyle = `rgba(${GREYC},1)`; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(k, CX + 24, y);
+      g.font = `24px ${MONO}`;
+      if (fa < 1) { g.globalAlpha = ca * (1 - fa); g.fillStyle = `rgba(${GREYC},0.8)`; g.fillText('—', CX + 160, y); }
+      if (fa > 0) { g.globalAlpha = ca * fa; g.fillStyle = `rgba(${WARMC},1)`; const n = Math.ceil(v.length * eo3((t - tf) / 0.3)); g.fillText(v.slice(0, n), CX + 160, y);
+        const hl = Math.exp(-(t - tf) * 5); if (hl > 0.02) { g.globalAlpha = ca * hl * 0.5; g.fillRect(CX + 12, y - 22, 536, 44); } }
+      g.globalAlpha = ca; });
+    g.font = `21px ${MONO}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    CODE.forEach((ln, i) => { const tl = EV.code + i * 0.09, la = ease((t - tl) / 0.06); if (la <= 0) return;
+      g.globalAlpha = ca * la; g.fillStyle = i === CODE.length - 1 ? `rgba(${WARMC},1)` : `rgba(${CREAM},0.62)`; g.fillText(ln, CX + 24, CY + 246 + i * 30 - 0); });
+    g.globalAlpha = 1;
+  }
+  // 字幕
+  if (SUBS) {
+    const cap = CAPTIONS.find(([, b, e]) => t >= b && t <= e);
+    if (cap) { const al = ease((t - cap[1]) / 0.08) * (1 - ease((t - cap[2] + 0.08) / 0.08) * (cap[2] < DURATION - 0.01 ? 1 : 0)) * (1 - ease((t - (DURATION - 0.5)) / 0.5) * 0);
+      g.save(); g.globalAlpha = al; g.font = `46px ${SANS}`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.shadowColor = 'rgba(0,0,0,0.65)'; g.shadowBlur = 10; g.fillStyle = '#f4f2ec'; g.fillText(cap[0], 960, 1080 - 82); g.restore(); }
+  }
+  gl.bindTexture(gl.TEXTURE_2D, tUI); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, uiCanvas);
+}
+
+function quad() { gl.drawArrays(gl.TRIANGLES, 0, 3); }
+function bind(u, unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(u, unit); }
+function sceneUniforms(u, t) {
+  const L = lightState(t);
+  gl.uniform1f(u.uT, t); gl.uniform4f(u.uInit, L.ig, L.spec, L.gain, L.rend);
+  gl.uniform4f(u.uGeo, L.cx, L.cy, L.R, L.lines); gl.uniform2f(u.uEnd, L.settle, L.ground);
+}
+const MIX0 = DURATION - 0.75;   // 叠化进第三天
+function renderFrame(i, sub) {
+  const t0 = i / FPS * TIME_SCALE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, F_ACC); gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.useProgram(P_SCENE.p); const u = P_SCENE.u; gl.uniform2f(u.uRes, W, H);
+  gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE); gl.blendColor(0, 0, 0, 1 / sub);
+  for (let s = 0; s < sub; s++) { sceneUniforms(u, t0 + ((s + 0.5) / sub - 0.5) * SHUTTER / FPS * TIME_SCALE); quad(); }
+  gl.disable(gl.BLEND);
+  gl.useProgram(P_BRIGHT.p); gl.bindFramebuffer(gl.FRAMEBUFFER, F_Q1); gl.viewport(0, 0, ...q);
+  bind(P_BRIGHT.u.uSrc, 0, tL); gl.uniform2f(P_BRIGHT.u.uTexel, 1 / W, 1 / H); quad();
+  gl.useProgram(P_BLUR.p);
+  const blur = (src, dst, w, h, dx, dy) => { gl.bindFramebuffer(gl.FRAMEBUFFER, dst); gl.viewport(0, 0, w, h); bind(P_BLUR.u.uSrc, 0, src); gl.uniform2f(P_BLUR.u.uDir, dx / w, dy / h); quad(); };
+  blur(tQ1, F_Q2, ...q, 1, 0); blur(tQ2, F_Q1, ...q, 0, 1);
+  blur(tQ1, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5); blur(tE2, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5);
+  drawUI(t0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.useProgram(P_FINAL.p);
+  bind(P_FINAL.u.uLight, 0, tL); bind(P_FINAL.u.uB1, 1, tQ1); bind(P_FINAL.u.uB2, 2, tE2); bind(P_FINAL.u.uUI, 3, tUI); bind(P_FINAL.u.uEndImg, 4, tEnd);
+  gl.uniform2f(P_FINAL.u.uRes, W, H); gl.uniform1f(P_FINAL.u.uFrame, i); gl.uniform1f(P_FINAL.u.uMix, i >= (window.OUTPUT_FRAMES || Math.round(DURATION * FPS / TIME_SCALE)) - 1 ? 1 : ease((t0 - MIX0) / 0.72)); quad();
+}
+const pixels = new Uint8Array(W * H * 4);
+async function grab(i) {
+  renderFrame(i, SUB);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  const blob = new Blob([pixels]);
+  return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+}
+window.FRAMES = Math.ceil(DURATION * FPS / TIME_SCALE); window.grab = grab; window.EV = EV; window.gl = gl;
+const endImg = new Image(); endImg.src = TIME_SCALE === 1 ? '_d3f0.png' : '_d3f0-r8.png';
+Promise.all([document.fonts.load('46px "Noto Serif CJK SC"', '中文'),document.fonts.load('46px "Noto Sans CJK SC"', '中文'),document.fonts.load(`122px ${SERIF}`, '要有光'), document.fonts.load(`46px ${SANS}`, '神说要有光没有波长光强渲染参数上帝只负责提需求全局照能初始化成功靠Claude替他补齐细节写完代码这是宇宙第一次Vibe Coding未指定路径追踪自适应曝光'),
+  document.fonts.load(`30px ${MONO}`, 'const light = new Light({ spectrum: [380, 750], intensity: auto, gi: "path-traced" }) light.init() ✓ —–nm .…'), endImg.decode()])
+  .then(() => { gl.bindTexture(gl.TEXTURE_2D, tEnd); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, endImg); window.ready=false;Promise.all([...document.fonts].map(f=>f.load())).then(()=>{window.ready=true;}); });
+</script></body></html>

@@ -1,0 +1,7 @@
+# 运行产物
+*.wav
+*.mp4
+keyframes.jpg
+stills/
+__pycache__/
+最小示例/tts/

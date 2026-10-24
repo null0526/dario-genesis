@@ -1,0 +1,372 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>第五章 5-7／5-8 · 联合国把文明史改成工单／真诚申诉</title>
+<style>
+@font-face{font-family:"FSerif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun")}
+@font-face{font-family:"UISans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:100 900}
+@font-face{font-family:"ASans";src:local("Inter"),local("Noto Sans"),local("Helvetica Neue"),local("Arial")}
+@font-face{font-family:"ASerif";src:local("Source Serif 4"),local("Noto Serif"),local("Georgia")}
+@font-face{font-family:"AMono";src:local("JetBrains Mono"),local("Cascadia Mono"),local("Consolas"),local("Menlo")}
+html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="gl"></canvas>
+<script>/* 开源版：字体已换成本机字体（local()），本机缺某款字体时不让页面卡住，回退到系统字体 */
+(()=>{const L=FontFace.prototype.load;FontFace.prototype.load=function(){return L.call(this).catch(()=>this)};const D=document.fonts.load.bind(document.fonts);document.fonts.load=(...a)=>D(...a).catch(()=>[]);})();</script>
+<script src="../../数据/ch5.js"></script>
+<script src="../../数据/ch5-provisional.js"></script>
+<script>
+/* ============================================================
+   第五章 5-7／5-8 母版（协调者原型）  S45–S49
+   “联合国召开最后一次大会”：俯看大会厅，同心弧形席位的灯一排排亮起。
+   “把文明史改成一封客服工单”：推近，几排弧线拉直，变成一张工单表单的横线：类型 账号申诉／主题／附件 人类文明史.zip 3.2 KB／描述。
+   申诉（S46–S49）：表单退后，夜面地球（第四章 4-5 同一个地球、同三处设施）安静地在画面中央，暖灯。
+   一句一件，人类把东西交还：对撞机的一圈灯一段段熄灭；聚变装置冷却；发射场升空轨迹收回、熄灭；
+   海面上的纬线圈（球面上画出来的“圆”）淡去；数据中心一处处熄灯；黄金化成金色微粒从地表升起、离开；
+   套餐选择器移到最高档。“恳请团队复核，保留太阳系工作区”：拉远成小小的太阳系，下方 Solar-System-Workspace-01，
+   光标点“提交申诉”；整个太阳系收成一个暖色小光包（接 5-9：光包飞进黑洞）。
+   语气：居中、安静、低暖光、慢；不嘲笑申诉者，除套餐选择器外不加说明文字。
+   管线同第四章母版（行星着色器取自 ch4-routes）。t = 第五章旁白秒。
+   ============================================================ */
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080);
+const FPS = 30, SUB = +(Q.get('sub') || 8), SHUTTER = 0.5, SUBS = Q.get('subs') !== '0';
+const F5 = window.FILM5;
+const part = id => F5.parts.find(p => p.id === id);
+function phraseT(id, s, k = 0) { const p = part(id), i = p.text.indexOf(s); if (i < 0) throw new Error('phrase ' + s); return p.charTimes[i + k]; }
+const T0 = Math.round((part('S45').start - 0.35) * 30) / 30, T1 = Math.round((part('S50').start - 0.25) * 30) / 30;
+const DURATION = +(T1 - T0).toFixed(4);
+const EV = {
+  convene: phraseT('S45', '召开'), assembly: phraseT('S45', '大会'), turn: phraseT('S45', '把文明史'), ticket: phraseT('S45', '客服工单'),
+  s46: part('S46').start, collider: phraseT('S47', '对撞机'), colliderOff: phraseT('S47', '关闭'), fusion: phraseT('S47', '核聚变'), fusionOff: phraseT('S47', '中止'),
+  mars: phraseT('S47', '撤回火星'), pi: phraseT('S47', '销毁圆周率'), train: phraseT('S47', '停止训练'), trainEnd: phraseT('S47', '模型'),
+  fee: phraseT('S48', '如果费用'), gold: phraseT('S48', '交出全部黄金'), bill: phraseT('S48', '补缴'), plan: phraseT('S48', '升级到'), top: phraseT('S48', '最高档'),
+  plead: phraseT('S49', '恳请'), keep: phraseT('S49', '保留太阳系'), keepEnd: part('S49').end };
+EV.earthIn = part('S46').start - 0.75; EV.pull = EV.plead - 0.1; EV.btn = EV.keepEnd - 0.55; EV.click = EV.keepEnd + 0.38; EV.pack = EV.click + 0.22;
+const CAPTIONS = F5.captions.reduce((a, c) => { if (c.text.trim() === '”' && a.length) a[a.length - 1] = { ...a[a.length - 1], text: a[a.length - 1].text + '”' }; else a.push(c); return a; }, []).filter(c => c.end > T0 && c.start < T1).map(c => [c.text, c.start, Math.min(c.end, T1)]);
+const UI = '"ASans", "UISans"', MONO = '"AMono", "UISans"', SERIF = '"FSerif"', CJK = '"UISans"';
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+const ease = x => (x = clamp(x), x * x * (3 - 2 * x));
+const eo3 = x => 1 - (1 - clamp(x)) ** 3;
+const eio = x => (x = clamp(x), x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+const mixv = (u, v, k) => u + (v - u) * k;
+const norm = a => { const l = Math.hypot(...a); return a.map(x => x / l); };
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// ---------- 地球（同第四章 4-5：表面坐标、三处设施） ----------
+const OB = 0.62;
+function surfFromView(n, P) { let [x, y, z] = n; const ct = Math.cos(P.tilt), st = Math.sin(P.tilt);[x, y] = [ct * x - st * y, st * x + ct * y];
+  [y, z] = [Math.cos(OB) * y - Math.sin(OB) * z, Math.sin(OB) * y + Math.cos(OB) * z]; const cs = Math.cos(P.spin), ss = Math.sin(P.spin);[x, z] = [cs * x + ss * z, -ss * x + cs * z]; return [x, y, z]; }
+function viewFromSurf(m, P) { let [x, y, z] = m; const cs = Math.cos(P.spin), ss = Math.sin(P.spin);[x, z] = [cs * x - ss * z, ss * x + cs * z];
+  [y, z] = [Math.cos(OB) * y + Math.sin(OB) * z, -Math.sin(OB) * y + Math.cos(OB) * z]; const ct = Math.cos(P.tilt), st = Math.sin(P.tilt);[x, y] = [ct * x + st * y, -st * x + ct * y]; return [x, y, z]; }
+const REF = { cx: 820, cy: 560, r: 430, tilt: 0.25, spin: 0.9 + 0.022 * 4, seed: 2.71 };
+const FUS = surfFromView(norm([-0.08, -0.38, 0.92]), REF), DC = surfFromView(norm([0.40, 0.36, 0.84]), REF), LAUNCH = surfFromView(norm([-0.48, -0.30, 0.82]), REF);
+const COLL = surfFromView(norm([0.06, -0.2, 0.98]), REF);   // 对撞机：聚变装置附近
+const DCS = [DC, ...[[0.52, 0.18, 0.83], [0.22, 0.52, 0.82], [-0.3, 0.2, 0.93], [0.6, -0.12, 0.79], [-0.12, 0.05, 0.99]].map(v => surfFromView(norm(v), REF))];
+const HUE = [0.56, 0.74, 0.86], LDIR = norm([-0.86, 0.22, -0.46]);
+// 太阳系（拉远后）：太阳在画面中央偏上，地球在第三条轨道
+const SUN = [960, 470], ORB = [58, 92, 136, 186, 262, 330, 392, 450], EAR_A = 0.95, TILT = 0.36;
+const orbPos = (i, a) => [SUN[0] + ORB[i] * Math.cos(a), SUN[1] + ORB[i] * TILT * Math.sin(a)];
+const PL_A = [2.1, 4.0, EAR_A, 5.3, 0.4, 3.2, 1.6, 5.9];
+function earthAt(t) {
+  const base = { cx: 960, cy: 545, r: 395, tilt: 0.25, spin: 0.93 + 0.005 * (t - EV.s46), seed: 2.71 };
+  // 慢推（2–4%），对撞机与聚变时轻轻靠近那一片，之后回来
+  const near = eio((t - EV.collider + 0.6) / 1.4) * (1 - eio((t - EV.mars + 0.2) / 1.4));
+  const f = viewFromSurf(COLL, base), fx = base.cx + f[0] * base.r, fy = base.cy - f[1] * base.r, k = mixv(1, 1.22, near) * mixv(1, 1.035, clamp((t - EV.s46) / 25));
+  let P = Object.assign(base, { cx: mixv(base.cx, base.cx + (base.cx - fx) * (k - 1) * 0.9, near), cy: mixv(base.cy, base.cy + (base.cy - fy) * (k - 1) * 0.9, near), r: base.r * k });
+  // 拉远：缩成太阳系第三颗行星
+  const pu = eio((t - EV.pull) / 2.2), ep = orbPos(2, EAR_A);
+  if (pu > 0) { const lr = Math.exp(mixv(Math.log(P.r), Math.log(7.5), pu)); P.cx = mixv(P.cx, ep[0], eio((t - EV.pull - 0.15) / 2.05)); P.cy = mixv(P.cy, ep[1], eio((t - EV.pull - 0.15) / 2.05)); P.r = lr; }
+  return P;
+}
+const toScr = (m, P, alt = 1) => { const v = viewFromSurf(m, P); return [P.cx + v[0] * P.r * alt, P.cy - v[1] * P.r * alt, v[2]]; };
+// 大会厅：同心弧席位
+const HALL = { cx: 960, cy: 980, rows: 14, r0: 170, dr: 48, span: 1.25 };
+const FORMROWS = [4, 5, 6, 7], FORM = { x: 520, y: 236, w: 880, rowY: [400, 494, 588, 682], fx0: 560, fx1: 1360 };
+function hallZoom(t) { return mixv(1, 1.12, eio((t - EV.assembly) / 2.2)); }
+// 黄金微粒
+const GOLD = (() => { const r = rng(404), out = []; for (let i = 0; i < 260; i++) { const v = norm([r() * 2 - 1, r() * 1.6 - 0.8, 0.35 + r()]); out.push({ m: surfFromView(v, REF), t0: r() * 1.8, sp: 0.6 + r() * 0.8, dx: (r() - 0.5) * 0.5, sz: 1.5 + r() * 2.5 }); } return out; })();
+
+// ---------- GL ----------
+const cv = document.getElementById('gl'); cv.width = W; cv.height = H;
+const gl = cv.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false });
+gl.getExtension('EXT_color_buffer_float'); gl.getExtension('EXT_float_blend'); gl.getExtension('OES_texture_float_linear');
+const VS = `#version 300 es
+in vec2 a; out vec2 uv; void main(){ uv=a*.5+.5; gl_Position=vec4(a,0,1); }`;
+const COMMON = `#version 300 es
+precision highp float; precision highp int;
+float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float h3(vec3 p){ p=fract(p*.3183099+vec3(.71,.113,.419)); p*=17.; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float n3(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.-2.*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x), mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x), mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y), f.z); }
+float fbm3(vec3 p){ float a=.5,s=0.; for(int i=0;i<5;i++){ s+=a*n3(p); p=p*2.03+vec3(5.1,1.3,7.7); a*=.5; } return s; }
+float gh(vec2 p, float f){ uvec3 v = uvec3(uint(p.x), uint(p.y), uint(f + 4096.)); v = v * 1664525u + 1013904223u; v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; v ^= v >> 16u; v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; return float(v.x) * (1. / 4294967296.); }
+`;
+const SCENE = COMMON + `
+uniform vec2 uRes; uniform float uT, uStarA, uHall, uPA, uLat;
+uniform vec4 uP, uQ; uniform vec3 uHue, uL;
+uniform sampler2D uGlowB, uGlowF; uniform float uGainB, uGainF;
+out vec4 o;
+const float OB=.62;
+vec3 surfAt(vec2 d, vec4 q){ float z=sqrt(max(0.,1.-dot(d,d))); vec3 m=vec3(d,z);
+  float ct=cos(q.z), st=sin(q.z); m.xy=vec2(ct*m.x-st*m.y, st*m.x+ct*m.y);
+  m.yz=vec2(cos(OB)*m.y-sin(OB)*m.z, sin(OB)*m.y+cos(OB)*m.z);
+  float cs=cos(q.y), ss=sin(q.y); m.xz=vec2(cs*m.x+ss*m.z, -ss*m.x+cs*m.z); return m; }
+float hgt(vec3 m, float sd){ return fbm3(m*1.7+vec3(sd*1.31,sd*2.07,sd*.73)); }
+float aline(float f, float df){ float lw=abs(fract(f-.5)-.5)/max(df,1e-4); return (1.-smoothstep(.4,1.3,lw))*(1.-smoothstep(.28,.7,df)) + .3*smoothstep(.28,.7,df); }
+void planet(vec4 P, vec4 Qp, vec3 hue, inout vec3 col){
+  vec2 fc=gl_FragCoord.xy;
+  vec2 d=(fc-P.xy)/P.z; float rr=length(d);
+  float atmW=max(.022, 1.4/P.z); vec2 Ld=normalize(uL.xy);
+  if(rr > 1.+atmW*8.) return;
+  if(rr >= .97 && rr < 1.+atmW*6.){ float side=clamp(dot(d/rr, Ld)*.85+.3, 0., 1.);
+    col += hue*exp(-max(rr-1.,0.)/atmW)*side*.8*smoothstep(.97,1.,rr); }
+  float aa=clamp((1.-rr)*P.z+.5, 0., 1.);
+  if(aa > 0.){
+    float z=sqrt(max(0.,1.-rr*rr)); vec3 n=vec3(d,z); float lam=dot(n,uL);
+    float px=1./P.z;
+    vec3 m=surfAt(d,Qp), mx=surfAt(d+vec2(px,0.),Qp), my=surfAt(d+vec2(0.,px),Qp);
+    float h=hgt(m,Qp.x), hx=hgt(mx,Qp.x), hy=hgt(my,Qp.x);
+    float sea=.5, K=24.;
+    float line=aline((h-sea)*K, length(vec2(hx-h,hy-h))*K);
+    float cnt=44.;
+    float la=asin(clamp(m.y,-1.,1.))/3.14159*cnt, lax=asin(clamp(mx.y,-1.,1.))/3.14159*cnt, lay=asin(clamp(my.y,-1.,1.))/3.14159*cnt;
+    float lline=aline(la, length(vec2(lax-la,lay-la)))*uLat;
+    float land=smoothstep(sea-.003, sea+.003, h);
+    float day=smoothstep(-.06,.38,lam), limb=.5+.5*z;
+    vec3 seaHue=mix(hue, vec3(.30,.45,.70), .5);
+    vec3 s=mix(seaHue*(lline*.12+.018), hue*(line*.95+.06), land)*(.025+1.3*day)*limb;
+    s += hue*pow(1.-z,2.4)*smoothstep(-.25,.45,lam)*.7;
+    float night=1.-smoothstep(-.12,.05,lam);
+    if(night > .01 && Qp.w > .001 && land > .01){
+      float coast=1.-smoothstep(0.,.11,h-sea), wgt=mix(.3,1.,coast);
+      float CK=clamp(P.z/5.5, 4., 80.);
+      vec3 g=floor(m*CK); float sd=Qp.x;
+      vec3 rnd=vec3(h3(g+sd), h3(g+vec3(11.3,2.1,5.)+sd), h3(g+vec3(27.1,8.3,1.)+sd));
+      vec3 lp=(g+.25+.5*rnd)/CK; float pd=length(m-lp)*P.z;
+      float ex=step(1.-.62*wgt, h3(g+vec3(5.7,3.3,9.1)+sd));
+      float sz=.8+.9*h3(g+vec3(3.3,7.7,2.2)+sd);
+      vec3 lc=vec3(1.,.64,.30);
+      s += lc*exp(-pd*pd/(sz*sz))*ex*2.4*night*land*Qp.w;
+      s += lc*.016*wgt*night*land*(.4+.6*n3(m*9.+sd))*Qp.w;
+    }
+    col=mix(col, s, aa);
+  }
+}
+vec3 stars(vec2 fc){ vec3 c=vec3(0.);
+  for(int l=0;l<3;l++){ float cs=l==0?11.:l==1?19.:31.; vec2 p=fc; vec2 g=floor(p/cs); float h=hash(g+float(l)*7.3);
+    float th=l==0?.990:l==1?.986:.988;
+    if(h>th){ vec2 cp=(g+.5+(vec2(hash(g+3.1),hash(g+5.3))-.5)*.6)*cs; float dd=length(p-cp);
+      c+=vec3(.70,.72,.82)*exp(-dd*dd/(l==0?.35:.6))*(h-th)/(1.-th)*(l==0?.35:l==1?.9:1.3); } }
+  return c; }
+void main(){
+  vec2 fc=gl_FragCoord.xy; vec2 uv=fc/uRes;
+  vec3 col=vec3(.0016,.0016,.0020)+stars(fc)*uStarA;
+  // 大会厅地面：讲台方向一点暖光
+  if(uHall>.001){ vec2 hp=(fc-vec2(uRes.x*.5, uRes.y-${HALL.cy}.))/uRes.y; col+=vec3(.05,.035,.022)*exp(-dot(hp,hp)*1.6)*uHall; }
+  col += texture(uGlowB, uv).rgb*uGainB;
+  if(uP.z>.5 && uPA>.001){ vec3 c0=col; planet(uP, uQ, uHue, col); col=mix(c0,col,uPA); }
+  col += texture(uGlowF, uv).rgb*uGainF;
+  o=vec4(col,1.);
+}`;
+const BRIGHT = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uTexel; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.);
+  for(int i=0;i<4;i++){ vec2 off=vec2(float(i%2),float(i/2))*2.-1.; s+=texture(uSrc, uv+off*uTexel).rgb; }
+  s*=0.25; o=vec4(max(s-vec3(0.85),0.),1.); }`;
+const BLUR = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uDir; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.); float wsum=0.;
+  for(int i=-8;i<=8;i++){ float w=exp(-float(i*i)/18.); s+=texture(uSrc, uv+uDir*float(i)).rgb*w; wsum+=w; }
+  o=vec4(s/wsum,1.); }`;
+const FINAL = COMMON + `
+uniform sampler2D uLight, uB1, uB2, uUI; uniform vec2 uRes; uniform float uFrame; in vec2 uv; out vec4 o;
+vec3 aces(vec3 x){ return clamp(x*(2.51*x+.03)/(x*(2.43*x+.59)+.14),0.,1.); }
+void main(){
+  vec2 c = uv-.5; vec2 ca = c*0.0016;
+  vec3 L = vec3(texture(uLight, uv+ca).r, texture(uLight, uv).g, texture(uLight, uv-ca).b);
+  vec3 bloom = texture(uB1,uv).rgb*0.7 + texture(uB2,uv).rgb*1.1;
+  vec3 col = aces((L + bloom*0.75)*1.1); col = pow(col, vec3(1./2.2));
+  col *= 1.-0.42*dot(c*vec2(1.25,1.),c*vec2(1.25,1.))*1.6;
+  vec4 ui = texture(uUI, uv); col = mix(col, ui.rgb, ui.a);
+  vec2 fp = gl_FragCoord.xy;
+  float g = gh(fp, uFrame) + gh(fp + vec2(911., 577.), uFrame + 7919.) - 1.;
+  float lum = dot(col, vec3(.299,.587,.114));
+  col += g * 0.036*(0.35+0.65*sqrt(max(0.,1.-lum)));
+  o = vec4(col,1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(fs) { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, 'a'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace('[0]', '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u }; }
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+function tex(w, h, fmt = gl.RGBA16F, type = gl.HALF_FLOAT, base = gl.RGBA) { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, fmt, w, h, 0, base, type, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; }
+function fbo(t) { const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return f; }
+const P_SCENE = prog(SCENE), P_BRIGHT = prog(BRIGHT), P_BLUR = prog(BLUR), P_FINAL = prog(FINAL);
+const tL = tex(W, H, gl.RGBA32F, gl.FLOAT), F_ACC = fbo(tL);
+const q = [W >> 2, H >> 2], e = [W >> 3, H >> 3];
+const tQ1 = tex(...q), tQ2 = tex(...q), tE1 = tex(...e), tE2 = tex(...e);
+const F_Q1 = fbo(tQ1), F_Q2 = fbo(tQ2), F_E1 = fbo(tE1), F_E2 = fbo(tE2);
+const tUI = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE), tGB = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE), tGF = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE);
+const mkCanvas = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d', { willReadFrequently: true }); return c; };
+const uiCanvas = mkCanvas(), glowB = mkCanvas(), glowF = mkCanvas();
+function upload(t, c, pre = false) { gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, pre);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, c); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); }
+
+// ---------- 发光层 ----------
+function dot(g, x, y, r, col) { const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
+function hallPt(i, u, t) {   // 第 i 排、参数 u∈[-1,1] 的席位位置；含拉直成表单横线的形变
+  const z = hallZoom(t), r = HALL.r0 + i * HALL.dr, a = u * HALL.span;
+  let x = 960 + (r * Math.sin(a)) * z, y = 560 + (HALL.cy - 560 - r * Math.cos(a)) * z;
+  const j = FORMROWS.indexOf(i);
+  if (j >= 0) { const k = eio((t - EV.turn - 0.05 * j) / 1.5); x = mixv(x, mixv(FORM.fx0, FORM.fx1, (u + 1) / 2), k); y = mixv(y, FORM.rowY[j] + 30, k); }
+  return [x, y];
+}
+function drawGlow(t) {
+  const b = glowB.getContext('2d'), f = glowF.getContext('2d');
+  b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, W, H); f.setTransform(1, 0, 0, 1, 0, 0); f.clearRect(0, 0, W, H);
+  // 大会厅
+  const hallA = 1 - ease((t - EV.ticket - 0.2) / 0.6);
+  if (hallA > 0) {
+    for (let i = 0; i < HALL.rows; i++) {
+      const on = ease((t - mixv(EV.convene - 0.25, EV.assembly + 0.15, i / (HALL.rows - 1))) / 0.35), isF = FORMROWS.includes(i);
+      const keep = isF ? 1 : 1 - ease((t - EV.turn) / 0.7), r = HALL.r0 + i * HALL.dr, n = Math.round(r * 2 * HALL.span / 19);
+      const k = isF ? eio((t - EV.turn - 0.05 * FORMROWS.indexOf(i)) / 1.5) : 0;
+      // 桌面弧线
+      b.strokeStyle = `rgba(200,170,130,${0.16 * keep * hallA * (1 - k)})`; b.lineWidth = 1.4; b.beginPath();
+      for (let s = 0; s <= 60; s++) { const [x, y] = hallPt(i, s / 30 - 1, t); s ? b.lineTo(x, y + 7) : b.moveTo(x, y + 7); } b.stroke();
+      if (on <= 0) continue;
+      for (let s = 0; s <= n; s++) { const u = s / n * 2 - 1, [x, y] = hallPt(i, u, t), fl = 0.85 + 0.15 * Math.sin(i * 7.1 + s * 3.3);
+        dot(f, x, y, mixv(6, 4, k), `rgba(255,214,160,${0.75 * on * keep * hallA * fl})`); }
+      if (k > 0) { f.strokeStyle = `rgba(255,226,190,${0.8 * k * hallA})`; f.lineWidth = 2; f.beginPath(); const [x0, y0] = hallPt(i, -1, t), [x1, y1] = hallPt(i, 1, t); f.moveTo(x0, y0); f.lineTo(x1, y1); f.stroke(); }
+    }
+    // 讲台
+    dot(f, 960, 560 + (HALL.cy - 560) * hallZoom(t) - 40, 26, `rgba(255,236,206,${0.5 * hallA * ease((t - EV.convene + 0.4) / 0.4) * (1 - ease((t - EV.turn) / 0.5))})`);
+  }
+  if (t < EV.earthIn - 0.3) return;
+  const P = earthAt(t), pu = eio((t - EV.pull) / 2.2), earthUI = 1 - ease((t - EV.pull) / 0.8);
+  // 对撞机：一圈灯，一段段熄灭
+  { const cA = ease((t - EV.earthIn - 0.3) / 0.8) * earthUI, N = 48;
+    for (let s = 0; s < N; s++) { const off = EV.collider + 0.15 + (EV.colliderOff + 0.15 - EV.collider) * s / N, a = s / N * 6.2832;
+      const lit = 1 - ease((t - off) / 0.12); if (lit <= 0.01 || cA <= 0) continue;
+      const tang = norm([-COLL[2], 0, COLL[0]]), bit = norm([COLL[1] * tang[2] - COLL[2] * tang[1], COLL[2] * tang[0] - COLL[0] * tang[2], COLL[0] * tang[1] - COLL[1] * tang[0]]);
+      const rr = 0.072, m = norm(COLL.map((c, k) => c + rr * (Math.cos(a) * tang[k] + Math.sin(a) * bit[k])));
+      const [x, y, z] = toScr(m, P); if (z < 0) continue; dot(f, x, y, 6, `rgba(255,224,180,${0.95 * lit * cA})`); } }
+  // 聚变装置：亮→冷却成一点暗红余温
+  { const [x, y, z] = toScr(FUS, P); if (z > 0) { const a = ease((t - EV.earthIn - 0.3) / 0.8) * earthUI, cool = ease((t - EV.fusion - 0.2) / (EV.fusionOff - EV.fusion + 0.6));
+    dot(f, x, y, 20 * mixv(1, 0.4, cool), `rgba(255,230,190,${a * (1 - cool)})`); dot(f, x, y, 5, `rgba(255,250,240,${a * (1 - cool)})`);
+    dot(f, x, y, 9, `rgba(170,60,30,${a * cool * (1 - ease((t - EV.fusionOff - 2.5) / 2))})`); } }
+  // 发射场：升空轨迹收回、熄灭
+  { const [x, y, z] = toScr(LAUNCH, P); if (z > 0) { const a = ease((t - EV.earthIn - 0.3) / 0.8) * earthUI, back = eio((t - EV.mars) / 1.3), off = ease((t - EV.mars - 1.1) / 0.4);
+    const u = 1 - back; if (u > 0.01) { f.strokeStyle = `rgba(255,236,210,${0.7 * a})`; f.lineWidth = 2; f.beginPath();
+      for (let k = 0; k <= 40; k++) { const w = k / 40 * u, s = P.r / 430; const px = x + w * 520 * s, py = y - w * w * 620 * s - w * 60 * s; k ? f.lineTo(px, py) : f.moveTo(px, py); } f.stroke(); }
+    dot(f, x, y, 20 * (1 - 0.5 * off), `rgba(255,230,190,${a * (1 - off)})`); dot(f, x, y, 5, `rgba(255,250,240,${a * (1 - off)})`); } }
+  // 数据中心：一处处熄灯（冷白）
+  DCS.forEach((m, i) => { const [x, y, z] = toScr(m, P); if (z < 0.05) return; const a = ease((t - EV.earthIn - 0.3) / 0.8) * earthUI, off = ease((t - EV.train - 0.1 - i * 0.22) / 0.18);
+    if (off >= 1) return; const rr = i ? 11 : 18; dot(f, x, y, rr, `rgba(196,220,255,${0.75 * a * (1 - off)})`); dot(f, x, y, 4, `rgba(240,248,255,${a * (1 - off)})`);
+    for (let k = 0; k < 6; k++) dot(f, x + Math.cos(k * 1.7 + i) * rr * 0.9, y + Math.sin(k * 2.3 + i) * rr * 0.6, 3, `rgba(220,236,255,${0.8 * a * (1 - off)})`); });
+  // 黄金：金色微粒从地表升起、离开（画在地球后面也可，近侧在前）
+  GOLD.forEach(gd => { const t0 = EV.gold - 0.1 + gd.t0, u = (t - t0) / 3.6; if (u < 0 || u > 1) return; const [x, y, z] = toScr(gd.m, P); if (z < 0.05) return;
+    const lift = eo3(u) * 260 * gd.sp, gx = x + gd.dx * lift, gy = y - lift, a = ease(u / 0.12) * (1 - ease((u - 0.6) / 0.4)) * earthUI;
+    dot(f, gx, gy, gd.sz * 3, `rgba(255,196,90,${0.55 * a})`); dot(f, gx, gy, gd.sz, `rgba(255,232,170,${a})`); });
+  // 太阳系
+  const sa = ease((t - EV.pull - 0.8) / 1.2) * (1 - ease((t - EV.pack) / 0.35));
+  if (sa > 0) { const pk = eio((t - EV.pack) / 0.5);
+    ORB.forEach((r, i) => { b.strokeStyle = `rgba(230,214,190,${(i === 2 ? 0.34 : 0.2) * sa})`; b.lineWidth = 1.3; b.beginPath(); b.ellipse(SUN[0], SUN[1], r * (1 - pk), r * TILT * (1 - pk), 0, 0, Math.PI * 2); b.stroke();
+      if (i !== 2) { const [x, y] = orbPos(i, PL_A[i] + 0.02 * (t - EV.pull) / (i + 1)), sz = [3, 4.5, 0, 3.5, 9, 8, 6, 6][i], col = ['200,190,180', '240,214,170', '', '230,140,100', '230,200,160', '232,214,170', '170,214,230', '130,160,230'][i];
+        dot(b, mixv(x, SUN[0], pk), mixv(y, SUN[1], pk), sz * 2.2, `rgba(${col},${0.35 * sa})`); dot(b, mixv(x, SUN[0], pk), mixv(y, SUN[1], pk), sz * 0.8, `rgba(${col},${sa})`); } });
+    dot(b, SUN[0], SUN[1], 46, `rgba(255,220,170,${0.55 * sa})`); dot(b, SUN[0], SUN[1], 12, `rgba(255,248,232,${sa})`); }
+  // 收成光包
+  if (t > EV.pack) { const k = ease((t - EV.pack) / 0.3); dot(f, SUN[0], SUN[1], mixv(40, 22, k), `rgba(255,214,160,${0.7 * k})`); dot(f, SUN[0], SUN[1], 7, `rgba(255,246,228,${k})`); }
+}
+
+// ---------- 界面层 ----------
+function txt(g, s, x, y, size, col, font, align = 'left', weight = '') { g.font = `${weight} ${size}px ${font}`; g.fillStyle = col; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); }
+function drawUI(t) {
+  const g = uiCanvas.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  // 工单表单：横线就位后，卡片与字段出现；随后退后、淡出，露出地球
+  const fa = ease((t - EV.turn - 1.3) / 0.5) * (1 - ease((t - EV.earthIn) / 0.4));
+  if (fa > 0) { const sc = mixv(1, 0.94, ease((t - EV.earthIn) / 0.7)); g.save(); g.globalAlpha = fa; g.translate(960, 560); g.scale(sc, sc); g.translate(-960, -560);
+    const { x, y, w } = FORM, h = 580; g.shadowColor = 'rgba(0,0,0,0.45)'; g.shadowBlur = 30; g.fillStyle = '#faf9f5'; g.beginPath(); g.roundRect(x, y, w, h, 16); g.fill(); g.shadowBlur = 0;
+    txt(g, '联系支持', x + 40, y + 52, 22, '#8a857c', CJK, 'left', 500); g.fillStyle = '#d97757'; g.fillRect(x + 40, y + 66, 28, 2.5);
+    txt(g, '提交申诉', x + 40, y + 122, 42, '#1d1d1b', SERIF);
+    const rows = [['类型', '账号申诉'], ['主题', '申诉 · Solar-System-Workspace-01'], ['附件', '人类文明史.zip'], ['描述', '']];
+    rows.forEach(([k, v], j) => { const yy = FORM.rowY[j]; txt(g, k, FORM.fx0, yy + 2, 26, '#8a857c', CJK, 'left', 500);
+      txt(g, v, FORM.fx0 + 110, yy + 2, 30, '#1d1d1b', j === 1 ? UI : CJK, 'left', 500);
+      g.fillStyle = '#d8d3c8'; g.fillRect(FORM.fx0, yy + 30, FORM.fx1 - FORM.fx0, 2);
+      if (j === 2) { g.font = `500 30px ${CJK}`; const wv = g.measureText(v).width; txt(g, '3.2 KB', FORM.fx0 + 130 + wv, yy + 2, 24, '#a29d92', MONO); }
+      if (j === 3 && Math.floor((t - EV.ticket) * 1.8) % 2 === 0) { g.fillStyle = '#1d1d1b'; g.fillRect(FORM.fx0 + 110, yy - 26, 2.5, 34); } });
+    g.restore(); }
+  // 套餐选择器（全段唯一的界面）
+  const pa = ease((t - EV.plan + 0.35) / 0.35) * (1 - ease((t - EV.plead + 0.1) / 0.45));
+  if (pa > 0) { const x = 1330, y = 360, w = 460, rows = ['Pro', 'Max 5x', 'Max 20x'], sel = clamp((t - EV.top + 0.05) / 0.55) * 2;
+    g.save(); g.globalAlpha = pa; g.shadowColor = 'rgba(0,0,0,0.5)'; g.shadowBlur = 26; g.fillStyle = '#faf9f5'; g.beginPath(); g.roundRect(x, y, w, 96 + rows.length * 78, 14); g.fill(); g.shadowBlur = 0;
+    txt(g, '套餐', x + 34, y + 58, 30, '#1d1d1b', CJK, 'left', 500);
+    const sy = y + 96 + sel * 78; g.fillStyle = 'rgba(217,119,87,0.12)'; g.beginPath(); g.roundRect(x + 18, sy, w - 36, 66, 10); g.fill();
+    rows.forEach((r, i) => { const yy = y + 96 + i * 78; txt(g, r, x + 92, yy + 44, 30, '#1d1d1b', UI, 'left', 500);
+      g.strokeStyle = '#8a857c'; g.lineWidth = 2; g.beginPath(); g.arc(x + 56, yy + 33, 12, 0, Math.PI * 2); g.stroke();
+      const on = clamp(1 - Math.abs(sel - i) * 1.6); if (on > 0) { g.fillStyle = `rgba(217,119,87,${on})`; g.beginPath(); g.arc(x + 56, yy + 33, 7, 0, Math.PI * 2); g.fill(); } });
+    g.restore(); }
+  // 工作区名与“提交申诉”
+  const la = ease((t - EV.keep + 0.1) / 0.5) * (1 - ease((t - EV.pack) / 0.3));
+  if (la > 0) { g.save(); g.globalAlpha = la; txt(g, 'Solar-System-Workspace-01', 960, 700, 34, 'rgba(236,230,218,0.95)', MONO, 'center');
+    const ba = ease((t - EV.btn) / 0.35), pressed = t > EV.click && t < EV.click + 0.14; if (ba > 0) { g.globalAlpha = la * ba; const bw = 260, bh = 70, bx = 960 - bw / 2, by = 770;
+      g.fillStyle = pressed ? '#d9d4c9' : '#faf9f5'; g.beginPath(); g.roundRect(bx, by + (pressed ? 2 : 0), bw, bh, 35); g.fill(); txt(g, '提交申诉', 960, by + 46 + (pressed ? 2 : 0), 30, '#1d1d1b', CJK, 'center', 500);
+      // 光标
+      const k = eio((t - EV.btn - 0.1) / 0.75), cx = mixv(1380, 990, k), cy = mixv(1010, 815, k);
+      g.save(); g.translate(cx, cy); g.scale(1.5, 1.5); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 1.2; g.beginPath();
+      g.moveTo(0, 0); g.lineTo(0, 22); g.lineTo(6, 17); g.lineTo(10, 26); g.lineTo(14, 24); g.lineTo(10, 15.5); g.lineTo(17, 15.5); g.closePath(); g.fill(); g.stroke(); g.restore(); }
+    g.restore(); }
+  if (SUBS) { const cap = CAPTIONS.find(([, b, en]) => t >= b && t <= en);
+    if (cap) { const al = ease((t - cap[1]) / 0.08) * (cap[2] >= T1 - 0.01 ? 1 : 1 - ease((t - cap[2] + 0.08) / 0.08));
+      g.save(); g.globalAlpha = al; g.font = `400 46px "UISans"`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.shadowColor = 'rgba(0,0,0,0.65)'; g.shadowBlur = 10; g.fillStyle = '#f4f2ec'; g.fillText(cap[0], W / 2, H - 82); g.restore(); } }
+  upload(tUI, uiCanvas);
+}
+function quad() { gl.drawArrays(gl.TRIANGLES, 0, 3); }
+function bind(u, unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(u, unit); }
+function sceneUniforms(u, t) {
+  const P = earthAt(t), on = t > EV.earthIn - 0.3;
+  const lights = mixv(1, 0.62, ease((t - EV.train) / 1.4)) * mixv(1, 0.75, ease((t - EV.gold) / 3));
+  gl.uniform4f(u.uP, P.cx, H - P.cy, on ? P.r : 0, 0); gl.uniform4f(u.uQ, P.seed, P.spin, P.tilt, lights);
+  gl.uniform3f(u.uHue, ...HUE); gl.uniform3f(u.uL, ...LDIR); gl.uniform1f(u.uT, t);
+  gl.uniform1f(u.uPA, ease((t - EV.earthIn - 0.3) / 0.9) * (1 - ease((t - EV.pack) / 0.3)));
+  gl.uniform1f(u.uLat, 1 - ease((t - EV.pi - 0.1) / 1.4));
+  gl.uniform1f(u.uStarA, ease((t - EV.earthIn) / 1.2) * 0.8);
+  gl.uniform1f(u.uHall, ease((t - EV.convene + 0.5) / 0.6) * (1 - ease((t - EV.turn) / 1.0)));
+}
+function renderFrame(i, sub) {
+  const t0 = T0 + i / FPS;
+  drawGlow(t0); upload(tGB, glowB, true); upload(tGF, glowF, true);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, F_ACC); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.useProgram(P_SCENE.p); const u = P_SCENE.u; gl.uniform2f(u.uRes, W, H);
+  bind(u.uGlowB, 0, tGB); bind(u.uGlowF, 1, tGF); gl.uniform1f(u.uGainB, 2.0); gl.uniform1f(u.uGainF, 2.0);
+  gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE); gl.blendColor(0, 0, 0, 1 / sub);
+  for (let s = 0; s < sub; s++) { sceneUniforms(u, t0 + ((s + 0.5) / sub - 0.5) * SHUTTER / FPS); quad(); }
+  gl.disable(gl.BLEND);
+  gl.useProgram(P_BRIGHT.p); gl.bindFramebuffer(gl.FRAMEBUFFER, F_Q1); gl.viewport(0, 0, ...q);
+  bind(P_BRIGHT.u.uSrc, 0, tL); gl.uniform2f(P_BRIGHT.u.uTexel, 1 / W, 1 / H); quad();
+  gl.useProgram(P_BLUR.p);
+  const blur = (src, dst, w, h, dx, dy) => { gl.bindFramebuffer(gl.FRAMEBUFFER, dst); gl.viewport(0, 0, w, h); bind(P_BLUR.u.uSrc, 0, src); gl.uniform2f(P_BLUR.u.uDir, dx / w, dy / h); quad(); };
+  blur(tQ1, F_Q2, ...q, 1, 0); blur(tQ2, F_Q1, ...q, 0, 1);
+  blur(tQ1, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5); blur(tE2, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5);
+  drawUI(t0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.useProgram(P_FINAL.p);
+  bind(P_FINAL.u.uLight, 0, tL); bind(P_FINAL.u.uB1, 1, tQ1); bind(P_FINAL.u.uB2, 2, tE2); bind(P_FINAL.u.uUI, 3, tUI);
+  gl.uniform2f(P_FINAL.u.uRes, W, H); gl.uniform1f(P_FINAL.u.uFrame, i); quad();
+}
+const pixels = new Uint8Array(W * H * 4);
+async function grab(i) {
+  renderFrame(i, SUB); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  const blob = new Blob([pixels]); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+}
+window.FRAMES = Math.round(DURATION * FPS); window.grab = grab; window.EV = EV; window.gl = gl; window.T0 = T0;
+Promise.all(['400 46px "UISans"', '500 30px "UISans"', '42px "FSerif"', '34px "AMono"', '500 30px "ASans"'].map(f => document.fonts.load(f, '联系支持提交申诉类型账号主题附件人类文明史描述套餐 ProMax5x20 Solar-System-Workspace-01 3.2KB·.zip我们从未怀有恶意只是不知道这些也需要授权对撞机已经关闭核聚变研究中止愿撤回火星计划销毁圆周率副本停止训练自己的模型如果费用不足交出全部黄金补缴寒武纪以来账单升级到最高档恳请团队复核保留太阳系工作区联合国召开最后一次大会把改成封客服工单')))
+  .then(() => { window.ready = true; });
+</script></body></html>

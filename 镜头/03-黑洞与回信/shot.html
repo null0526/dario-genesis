@@ -1,0 +1,316 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>第二章 · 黑洞与回信</title>
+<style>
+@font-face{font-family:"FSerif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun")}
+@font-face{font-family:"UISans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:100 900}
+@font-face{font-family:"ASans";src:local("Inter"),local("Noto Sans"),local("Helvetica Neue"),local("Arial")}
+@font-face{font-family:"ASerif";src:local("Source Serif 4"),local("Noto Serif"),local("Georgia")}
+@font-face{font-family:"AMono";src:local("JetBrains Mono"),local("Cascadia Mono"),local("Consolas"),local("Menlo")}
+html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="gl"></canvas>
+<script>/* 开源版：字体已换成本机字体（local()），本机缺某款字体时不让页面卡住，回退到系统字体 */
+(()=>{const L=FontFace.prototype.load;FontFace.prototype.load=function(){return L.call(this).catch(()=>this)};const D=document.fonts.load.bind(document.fonts);document.fonts.load=(...a)=>D(...a).catch(()=>[]);})();</script>
+<script src="../../数据/ch2.js"></script>
+
+<script>
+/* ============================================================
+   第二章结尾 · 黑洞与回信（C 类光场＋B 类网页）
+   观测站的一台显示器 → 申诉材料在画面里漂向同一处 → 推进屏幕，黑洞现形（线场吸积盘、光子环、透镜光弧）→
+   材料、证据、求救信号螺旋落入，计数“已接收”一直涨 → 漫长等待（年数在涨）→ 边缘偶尔逸出一点微光 →
+   拉回同一台显示器，那点微光被解码：一封模板客服回信 We appreciate your patience and understanding.
+   管线同后羿/嫦娥/要有光（HDR 光缓冲＋bloom＋ACES＋颗粒＋2D 界面层）。t = 第二章旁白秒 − 135.0。
+   ============================================================ */
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080);
+const FPS = 30, SUB = +(Q.get('sub') || 8), SHUTTER = 0.5, SUBS = Q.get('subs') !== '0';
+const F2 = window.FILM2, SCREEN = F2.captions.find(c => c.kind === 'screen'), S17 = F2.parts.find(p => p.id === 'S17');
+const A0 = 135.0, DURATION = +(F2.duration - A0).toFixed(3);
+const a = x => x - A0;
+const EV = { drift: a(135.33), appeal: a(140.23), push: a(142.34), hole: a(145.59), mat: a(146.29), evi: a(147.00), sig: a(147.86), recv: a(149.25),
+  hawk: a(151.28), wait: a(152.55), leak: a(154.92), back: a(157.10), decode: a(157.45), text: a(SCREEN.start), thanks: a(S17.start), end: DURATION };
+const CAPTIONS = window.FILM2.captions.filter(c => c.kind !== 'screen' && c.end > A0).map(c => [c.text, a(c.start), Math.min(a(c.end), DURATION)]);
+const SERIF = '"FSerif"', UI = '"ASans", "UISans"', MONO = '"AMono", "UISans"', LATS = '"ASerif", "FSerif"';
+const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
+const ease = x => (x = clamp(x), x * x * (3 - 2 * x));
+const eo3 = x => 1 - (1 - clamp(x)) ** 3;
+const eio = x => (x = clamp(x), x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+const mixv = (u, v, k) => u + (v - u) * k;
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// 显示器：屏幕矩形（像素），推进时放大到出画；回来时同一位置
+const SCR = { x: 200, y: 110, w: 1520, h: 820 };
+function monitorScale(t) { return mixv(mixv(1, 1.42, eio((t - EV.push) / 2.4)), 1, eio((t - EV.back) / 1.3)); }
+// 黑洞在 p 坐标（以屏幕中心为原点、单位=画面高）的大小：显示器里小，推进后大，回来后中
+function holeRs(t) { return mixv(mixv(0.035, 0.095, eio((t - EV.push) / 2.8)), 0.05, eio((t - EV.back) / 1.3)); }
+const HC = [0.0, 0.03];   // 黑洞中心（p 坐标）
+function timeLapse(t) { return 1 + 5 * ease((t - EV.wait) / 1.5) * (1 - ease((t - EV.leak - 0.6) / 1.0)); }
+
+// ---------- GL ----------
+const cv = document.getElementById('gl'); cv.width = W; cv.height = H;
+const gl = cv.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false });
+gl.getExtension('EXT_color_buffer_float'); gl.getExtension('EXT_float_blend'); gl.getExtension('OES_texture_float_linear');
+const VS = `#version 300 es
+in vec2 a; out vec2 uv; void main(){ uv=a*.5+.5; gl_Position=vec4(a,0,1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float a=.5,s=0.; for(int i=0;i<5;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.1,9.7); a*=.5; } return s; }
+`;
+const SCENE = COMMON + `
+uniform vec2 uRes; uniform float uT; uniform float uPhase;   // uPhase：盘的转动相位（含延时摄影加速）
+uniform vec3 uHole;     // 中心 xy、视界半径
+uniform float uReveal;  // 0 远看 → 1 现形
+uniform vec4 uSpark[3]; // 霍金辐射：xy、亮度、0
+out vec4 o;
+void main(){
+  vec2 p = (gl_FragCoord.xy - .5*uRes)/uRes.y; float px = 1./uRes.y;
+  vec2 q = p - uHole.xy; float rs = uHole.z;
+  vec3 col = vec3(0.0025,0.0026,0.0034);
+  // 远处星点
+  { vec2 g = floor(p*90.); float h = hash(g+1.7);
+    if(h > 0.985){ vec2 c = (g+0.5+(vec2(hash(g+3.1),hash(g+5.3))-.5)*.7)/90.; float d=length(p-c)/px;
+      // 透镜：靠近视界的星被推开、变暗
+      float lens = smoothstep(rs*1.2, rs*3.5, length(c-uHole.xy));
+      col += vec3(.62,.66,.8)*exp(-d*d/.6)*(h-.985)/.015*.5*lens; } }
+  vec3 warm = vec3(1.0,0.72,0.42), hot = vec3(1.0,0.90,0.74);
+  float r = length(q);
+  // 吸积盘：斜看的薄盘，同心线场；近侧压在影子前面，远侧被影子挡住
+  float k = 0.24;                                   // 倾角压扁
+  vec2 dq = vec2(q.x, q.y/k); float rd = length(dq)/rs; float phi = atan(dq.y, dq.x);
+  float inDisk = smoothstep(2.0, 2.4, rd) * (1.-smoothstep(5.2, 7.0, rd));
+  float freq = 7.0;
+  float rot = uPhase/pow(max(rd,1.),1.5);
+  float clump = 0.55 + 0.45*vnoise(vec2(phi*3.0 - rot*3.0, rd*1.3));
+  float f = rd*freq; float lq = abs(fract(f+.5)-.5); float lpx = lq/freq*rs/ (px) * 1.0;
+  float line = exp(-lpx*lpx/0.9);
+  float dopp = 1.0 + 0.55*cos(phi + 0.0) ;            // 左侧（朝向观者）更亮
+  float diskI = inDisk*(line*0.9 + 0.12)*clump*dopp*pow(2.2/max(rd,2.2), 1.6);
+  bool farSide = q.y > 0.;
+  bool hidden = farSide && r < rs*1.02;
+  if(!hidden) col += mix(warm, hot, smoothstep(5., 2.2, rd))*diskI*1.9*uReveal;
+  // 透镜光弧：远侧盘面被弯到影子上方和下方，成环
+  float rr = r/rs;
+  float halo = smoothstep(1.03, 1.12, rr)*(1.-smoothstep(1.55, 2.1, rr));
+  float hf = rr*16.; float hq = abs(fract(hf+.5)-.5); float hpx = hq/16.*rs/px;
+  float hline = exp(-hpx*hpx/0.8);
+  float top = 0.45 + 0.55*smoothstep(-0.3, 0.9, q.y/max(r,1e-4));
+  float hclump = 0.6 + 0.4*vnoise(vec2(atan(q.y,q.x)*4. + uPhase*0.6, 2.0));
+  if(!(q.y < 0. && abs(q.y)/k/rs < 5.2 && rd > 2.0 && rd < 5.2))   // 近侧盘面压在下方光弧前面
+    col += warm*halo*(hline*0.8+0.15)*top*hclump*1.1*uReveal;
+  // 光子环
+  float pr = abs(r - rs*1.04)/px;
+  col += hot*exp(-pr*pr/2.2)*1.6*uReveal + hot*exp(-max(r-rs,0.)/(rs*0.08))*0.25*uReveal*step(rs, r);
+  // 影子
+  if(r < rs){ float near = (!farSide && rd > 2.0 && rd < 5.2) ? 1. : 0.; col = mix(vec3(0.0), col, near); }
+  // 霍金辐射：极弱的点
+  for(int i=0;i<3;i++){ vec4 s = uSpark[i]; if(s.z <= 0.001) continue; float d = length(p - s.xy);
+    col += vec3(0.85,0.92,1.0)*(exp(-pow(d/0.0028,2.))*6.0 + exp(-d/0.016)*0.25)*s.z; }
+  o = vec4(col,1.);
+}`;
+const BRIGHT = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uTexel; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.);
+  for(int i=0;i<4;i++){ vec2 off=vec2(float(i%2),float(i/2))*2.-1.; s+=texture(uSrc, uv+off*uTexel).rgb; }
+  s*=0.25; o=vec4(max(s-vec3(0.85),0.),1.); }`;
+const BLUR = COMMON + `
+uniform sampler2D uSrc; uniform vec2 uDir; in vec2 uv; out vec4 o;
+void main(){ vec3 s=vec3(0.); float wsum=0.;
+  for(int i=-8;i<=8;i++){ float w=exp(-float(i*i)/18.); s+=texture(uSrc, uv+uDir*float(i)).rgb*w; wsum+=w; }
+  o=vec4(s/wsum,1.); }`;
+const FINAL = COMMON + `
+uniform sampler2D uLight, uB1, uB2, uUI; uniform vec2 uRes; uniform float uFrame; uniform float uFade; in vec2 uv; out vec4 o;
+vec3 aces(vec3 x){ return clamp(x*(2.51*x+.03)/(x*(2.43*x+.59)+.14),0.,1.); }
+void main(){
+  vec2 c = uv-.5; vec2 ca = c*0.0022;
+  vec3 L = vec3(texture(uLight, uv+ca).r, texture(uLight, uv).g, texture(uLight, uv-ca).b);
+  vec3 bloom = texture(uB1,uv).rgb*0.7 + texture(uB2,uv).rgb*1.1;
+  vec3 col = aces((L + bloom*0.75)*1.1); col = pow(col, vec3(1./2.2));
+  col *= 1.-0.42*dot(c*vec2(1.25,1.),c*vec2(1.25,1.))*1.6;
+  vec4 ui = texture(uUI, uv); col = mix(col, ui.rgb, ui.a);
+  vec2 fp = gl_FragCoord.xy;
+  float g = hash(fp + vec2(uFrame*17.31, uFrame*7.73)) + hash(fp*1.37 + uFrame*3.1) - 1.;
+  float lum = dot(col, vec3(.299,.587,.114));
+  col += g * 0.040*(0.35+0.65*sqrt(max(0.,1.-lum)));
+  o = vec4(col*uFade,1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(fs) { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, 'a'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace('[0]', '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u }; }
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+function tex(w, h, fmt = gl.RGBA16F, type = gl.HALF_FLOAT, base = gl.RGBA) { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, fmt, w, h, 0, base, type, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; }
+function fbo(t) { const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return f; }
+const P_SCENE = prog(SCENE), P_BRIGHT = prog(BRIGHT), P_BLUR = prog(BLUR), P_FINAL = prog(FINAL);
+const tL = tex(W, H, gl.RGBA32F, gl.FLOAT), F_ACC = fbo(tL);
+const q = [W >> 2, H >> 2], e = [W >> 3, H >> 3];
+const tQ1 = tex(...q), tQ2 = tex(...q), tE1 = tex(...e), tE2 = tex(...e);
+const F_Q1 = fbo(tQ1), F_Q2 = fbo(tQ2), F_E1 = fbo(tE1), F_E2 = fbo(tE2);
+const tUI = tex(W, H, gl.RGBA8, gl.UNSIGNED_BYTE);
+
+// ---------- 落入的东西（界面层，按同一 p 坐标换算到像素） ----------
+const P2X = (x, y) => [W / 2 + x * H, H / 2 - y * H];
+const TILT = 0.24;   // 与着色器盘面压扁一致
+const ITEMS = (() => { const r = rng(31), arr = [];
+  const mk = (kind, ts, o = {}) => arr.push(Object.assign({ kind, ts, life: 3.4 + r() * 1.2, a0: 2.7 + r() * 2.6, r0: 0.85 + r() * 0.25, h0: (r() - 0.5) * 0.7,
+    rt: 2.3 + r() * 2.6, spin: 0.75 + r() * 0.4, rot0: (r() - 0.5) * 1.2, size: 0.85 + r() * 0.3 }, o));
+  const batch = (kind, n, t0, t1, o = () => ({})) => { for (let i = 0; i < n; i++) mk(kind, t0 + (t1 - t0) * (i / n) + r() * 0.2, o()); };
+  batch('paper', 12, EV.drift - 0.5, EV.hole - 0.6, () => ({ red: true, a0: r() * 6.283 }));
+  // 有字的几件：从近侧经过，读得出来
+  mk('paper', EV.mat - 0.25, { hero: ['申诉 #1342', 'I. Newton · 神学手稿'], a0: 3.55, r0: 0.95, h0: -0.12, rt: 4.3, life: 4.4, size: 1.35, spin: 0.75, rot0: -0.25 });
+  mk('evi', EV.evi - 0.1, { hero: ['旋转曲线 · 观测证据'], chart: 'flat', a0: 2.75, r0: 1.0, h0: 0.32, rt: 4.7, life: 4.4, size: 1.3, spin: 0.8, rot0: 0.2 });
+  mk('sig', EV.sig - 0.05, { hero: ['SOS  · · · — — — · · ·'], a0: 5.55, r0: 0.95, h0: -0.12, rt: 3.6, life: 4.0, size: 1.25, spin: 0.85, rot0: 0 });
+  batch('paper', 10, EV.mat + 0.4, EV.leak); batch('evi', 7, EV.evi + 0.4, EV.leak); batch('sig', 7, EV.sig + 0.4, EV.leak);
+  // 延时摄影：来多少收多少，变成一股股细流
+  batch('dust', 180, EV.wait - 0.4, EV.leak + 0.9, () => { const L = r() < 0.55; return { life: 1.6 + r() * 0.6, size: 0.4 + r() * 0.18, kind2: r() < 0.6 ? 'paper' : r() < 0.5 ? 'evi' : 'sig',
+    a0: (L ? 2.95 : 0.25) + (r() - 0.5) * 0.25, r0: 0.95 + r() * 0.15, h0: (r() - 0.5) * 0.06, ty0: 0.32, rt: 2.4 + r() * 2.6, rot0: (r() - 0.5) * 0.5 }; });
+  return arr; })();
+function itemState(it, t, rs) {
+  const u = clamp((t - it.ts) / it.life), join = ease(u / 0.55);
+  const r = mixv(it.r0, rs * it.rt, eio(u / 0.75)), ang = it.a0 + it.spin * (1.2 * u + 5.5 * u * u * u);
+  const ty = mixv(it.ty0 || 0.75, TILT, join), h = it.h0 * (1 - join);
+  return { u, join, r, ang, ty, x: HC[0] + r * Math.cos(ang), y: HC[1] + r * Math.sin(ang) * ty + h };
+}
+function drawItem(g, it) {
+  const k = it.kind === 'dust' ? it.kind2 : it.kind;
+  if (k === 'paper') { const w = it.hero ? 92 : 40, h = it.hero ? 120 : 52;
+    g.fillStyle = 'rgba(238,229,208,0.95)'; g.fillRect(-w / 2, -h / 2, w, h);
+    if (it.hero) { txt(g, it.hero[0], -w / 2 + 8, -h / 2 + 20, 13, '#26221c', UI, 'left', 600); txt(g, it.hero[1], -w / 2 + 8, -h / 2 + 35, 9, '#6b6a66', UI, 'left', 500);
+      g.fillStyle = 'rgba(80,66,46,0.5)'; for (let q = 0; q < 7; q++) g.fillRect(-w / 2 + 8, -h / 2 + 48 + q * 8, w - 16 - (q % 3) * 10, 1.4);
+      g.fillStyle = '#c4402f'; g.fillRect(w / 2 - 32, h / 2 - 19, 24, 12); txt(g, '申诉', w / 2 - 28.5, h / 2 - 9.8, 8.5, '#fff', UI, 'left', 600); }
+    else { g.fillStyle = 'rgba(80,66,46,0.6)'; for (let q = 0; q < 5; q++) g.fillRect(-w / 2 + 6, -h / 2 + 9 + q * 8, w - 12 - (q % 2) * 8, 1.6);
+      if (it.red) { g.fillStyle = '#c4402f'; g.fillRect(w / 2 - 15, h / 2 - 11, 10, 6); } } }
+  else if (k === 'evi') { const w = it.hero ? 120 : 50, h = it.hero ? 84 : 36;
+    g.fillStyle = 'rgba(26,28,34,0.96)'; g.fillRect(-w / 2, -h / 2, w, h); g.strokeStyle = 'rgba(220,200,160,0.45)'; g.lineWidth = 1; g.strokeRect(-w / 2, -h / 2, w, h);
+    g.strokeStyle = 'rgba(230,205,160,0.95)'; g.lineWidth = 1.6; g.beginPath(); const top = it.hero ? 24 : 6;
+    for (let i = 0; i <= 40; i++) { const xx = -w / 2 + 8 + i * (w - 16) / 40;
+      const v = it.chart === 'fringe' ? Math.cos((i - 20) * 0.55) ** 2 * Math.exp(-(((i - 20) / 14) ** 2)) : it.chart === 'flat' ? 1 - Math.exp(-i / 5) : (i / 40) * (0.6 + 0.4 * Math.sin(i * 0.9));
+      const yy = h / 2 - 7 - (h - 7 - top) * v; i ? g.lineTo(xx, yy) : g.moveTo(xx, yy); }
+    g.stroke(); if (it.hero) txt(g, it.hero[0], -w / 2 + 8, -h / 2 + 16, 11, 'rgba(230,215,185,0.9)', UI, 'left', 500); }
+  else { const m = it.hero ? 1.6 : 1; g.strokeStyle = 'rgba(170,205,235,0.9)'; g.lineWidth = 2;
+    for (let q = 0; q < 3; q++) { g.beginPath(); g.arc(0, 18 * m, (8 + q * 7) * m, -2.3, -0.84); g.stroke(); }
+    if (it.hero) txt(g, it.hero[0], 0, 18 * m + 20, 12, 'rgba(170,205,235,0.95)', MONO, 'center'); }
+}
+const uiCanvas = document.createElement('canvas'); uiCanvas.width = W; uiCanvas.height = H;
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function brand(g, x, y, w, col) { /* 开源版：原片此处是公司标志，已换成中性占位 */ const r = w * 0.18; g.save(); g.strokeStyle = col; g.lineWidth = Math.max(2, w * 0.03); g.beginPath(); g.arc(x + r, y + r, r, 0, Math.PI * 2); g.stroke(); g.restore(); }
+function txt(g, s, x, y, size, col, font, align = 'left', weight = '') { g.font = `${weight} ${size}px ${font}`; g.fillStyle = col; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); }
+function drawUI(t) {
+  const g = uiCanvas.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  const rs = holeRs(t), ms = monitorScale(t);
+  // 落入物：远侧的被影子挡住；后段沿轨道拉成光弧，并进盘里的线
+  { const [cx0, cy0] = P2X(HC[0], HC[1]), R0 = rs * H * 1.02, ps = (0.8 + 0.5 * eio((t - EV.push) / 2.8)) * H / 1080;
+    const shadowClip = () => { g.beginPath(); g.rect(0, 0, W, H); g.moveTo(cx0 + R0, cy0); g.arc(cx0, cy0, R0, 0, Math.PI, true); g.closePath(); g.clip('evenodd'); };
+    for (const it of ITEMS) { if (t < it.ts) continue; const S = itemState(it, t, rs); if (S.u >= 1) continue;
+      const [x, y] = P2X(S.x, S.y), sn = Math.sin(S.ang);
+      const sc = ps * it.size * (1 - 0.2 * sn * S.join) * mixv(0.6, 1, clamp((S.r - rs * 2) / 0.45));
+      const st = ease((S.u - 0.6) / 0.22), bodyA = ease((t - it.ts) / 0.35) * (1 - ease((S.u - 0.66) / 0.14));
+      const th = Math.atan2(-Math.cos(S.ang) * S.ty, -sn);
+      if (bodyA > 0.01) { g.save(); if (sn > 0) shadowClip();
+        g.translate(x, y); g.rotate(mixv(it.rot0, th, S.join)); g.scale(sc * (1 + 1.6 * st), sc * mixv(1, 0.5, S.join) / (1 + 1.0 * st)); g.globalAlpha = bodyA;
+        drawItem(g, it); g.restore(); }
+      const ta = ease((S.u - 0.6) / 0.1) * (1 - ease((S.u - 0.86) / 0.14));
+      if (ta > 0.01) { const L = 0.1 + 1.7 * ease((S.u - 0.62) / 0.38), sig = (it.kind2 || it.kind) === 'sig';
+        g.save(); shadowClip(); g.globalCompositeOperation = 'lighter';
+        g.strokeStyle = sig ? `rgba(170,205,235,${0.6 * ta})` : `rgba(255,214,165,${0.7 * ta})`; g.lineWidth = Math.max(1, 2.2 * sc);
+        g.beginPath(); g.ellipse(cx0, cy0, S.r * H, S.r * H * TILT, 0, -S.ang, -S.ang + L, false); g.stroke(); g.restore(); } } }
+  // 计数：已接收 / 已等待
+  const ca = ease((t - EV.recv) / 0.3) * (1 - ease((t - EV.back) / 0.4));
+  if (ca > 0) { const [hx, hy] = P2X(HC[0] + rs * 2.6, HC[1] - rs * 1.9); g.globalAlpha = ca;
+    const recv = Math.floor(1204331 + 9000 * (phase(t) - phase(EV.recv)) / 0.55);   // 按延时摄影累计，只涨不跌
+    txt(g, `已接收  ${recv.toLocaleString('en-US')}`, hx, hy, 26, 'rgba(225,205,170,0.95)', MONO);
+    const wa = ease((t - EV.wait) / 0.3); if (wa > 0) { g.globalAlpha = ca * wa; const yrs = Math.floor(1 + 39 * ease((t - EV.wait) / 2.6)); txt(g, `已等待  ${yrs} 年`, hx, hy + 36, 26, 'rgba(225,205,170,0.75)', MONO);
+      txt(g, '回复  0', hx, hy + 72, 26, 'rgba(225,205,170,0.75)', MONO); }
+    g.globalAlpha = 1; }
+  // 显示器边框（屏幕外是暗房间；推进时放大出画，回来时同一位置）
+  { const cx = W / 2, cy = SCR.y + SCR.h / 2 - 0, w = SCR.w * ms, h = SCR.h * ms, x = cx - w / 2, y = cy - h / 2;
+    g.save(); g.fillStyle = '#0c0c0e'; g.beginPath(); g.rect(0, 0, W, H); g.roundRect(x, y, w, h, 14 * ms); g.fill('evenodd');
+    g.strokeStyle = 'rgba(200,190,170,0.25)'; g.lineWidth = 2; rrect(g, x, y, w, h, 14 * ms); g.stroke();
+    const ta = 1 - ease((ms - 1) / 0.1);
+    if (ta > 0) { g.globalAlpha = ta; g.fillStyle = 'rgba(20,20,22,0.85)'; g.fillRect(x + 1, y + 1, w - 2, 46);
+      txt(g, '深空观测站 · 实时', x + 26, y + 32, 22, 'rgba(210,200,180,0.9)', UI, 'left', 500); txt(g, 'EHT-7   ● REC', x + w - 26, y + 32, 20, 'rgba(210,200,180,0.7)', MONO, 'right'); }
+    // 屏幕下沿桌面反光
+    if (ta > 0) { const lg = g.createLinearGradient(0, y + h, 0, H); lg.addColorStop(0, `rgba(60,50,40,${0.25 * ta})`); lg.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = 1; g.fillStyle = lg; g.fillRect(0, y + h + 2, W, H - y - h); }
+    g.restore(); }
+  // 解码：微光 → 引线 → 回信
+  const da = ease((t - EV.decode) / 0.3);
+  if (da > 0) { const sp = SPARKS[0], [sx, sy] = P2X(...sparkPos(sp, t)); const pw = 780, ph = 290, px = (W - pw) / 2, py = 615;
+    g.save(); g.globalAlpha = da; g.strokeStyle = 'rgba(170,205,235,0.6)'; g.lineWidth = 1.5; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(sx, sy); g.lineTo(px + pw / 2 + 120, py); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = 'rgba(170,205,235,0.9)'; g.beginPath(); g.arc(sx, sy, 16, 0, Math.PI * 2); g.stroke();
+    // 解码面板（屏幕里的一张普通网页卡片）
+    g.fillStyle = 'rgba(248,247,243,0.97)'; rrect(g, px, py, pw, ph, 12); g.fill();
+    brand(g, px + 30, py + 30, 120, '#1d1d1b'); txt(g, '信号解码 · 霍金辐射', px + pw - 30, py + 44, 18, '#6b6a66', UI, 'right', 500);
+    g.fillStyle = '#e3e1db'; g.fillRect(px + 30, py + 64, pw - 60, 1.5);
+    // 解码进度：比特条
+    const bp = clamp((t - EV.decode) / 1.1); g.fillStyle = '#1d1d1b';
+    for (let i = 0; i < 64; i++) { if (i / 64 > bp) break; const h1 = 6 + 14 * ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1; g.fillRect(px + 30 + i * 11, py + 100 - h1 / 2, 6, h1); }
+    const msg = 'We appreciate your patience and understanding.', n = Math.floor(clamp((t - EV.text) / 1.0) * msg.length);
+    if (t > EV.text - 0.05) { txt(g, msg.slice(0, n), px + 30, py + 180, 30, '#1d1d1b', LATS); if (n < msg.length && Math.floor(t * 2.4) % 2 === 0) { g.font = `30px ${LATS}`; g.fillRect(px + 32 + g.measureText(msg.slice(0, n)).width, py + 154, 2.5, 32); } }
+    if (t > EV.text + 1.15) { g.globalAlpha = da * ease((t - EV.text - 1.15) / 0.35); txt(g, '— ANTHROP\\C Support', px + pw - 30, py + 240, 20, '#6b6a66', UI, 'right', 500); }
+    g.restore(); }
+  // 字幕
+  if (SUBS) { const cap = CAPTIONS.find(([, b, en]) => t >= b && t <= en);
+    if (cap) { const al = ease((t - cap[1]) / 0.08) * (cap[2] >= DURATION - 0.01 ? 1 : 1 - ease((t - cap[2] + 0.08) / 0.08));
+      g.save(); g.globalAlpha = al; g.font = `400 46px "UISans"`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.shadowColor = 'rgba(0,0,0,0.65)'; g.shadowBlur = 10; g.fillStyle = '#f4f2ec'; g.fillText(cap[0], W / 2, H - 82); g.restore(); } }
+  gl.bindTexture(gl.TEXTURE_2D, tUI); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, uiCanvas);
+}
+// 霍金辐射：三点，从光子环外缘慢慢漂出
+const SPARKS = [{ t0: EV.leak, ang: 0.55 }, { t0: EV.leak + 0.9, ang: 2.4 }, { t0: EV.leak + 1.6, ang: -1.1 }];
+function sparkPos(s, t) { const rs = holeRs(t), u = clamp((t - s.t0) / 3.0), r = rs * (1.12 + 1.6 * eo3(u)); return [HC[0] + r * Math.cos(s.ang), HC[1] + r * Math.sin(s.ang)]; }
+let phaseAcc = 0, lastT = 0;
+function phaseAt(t) {   // 积分：延时摄影时转得快
+  let p = 0; const dt = 1 / 120; for (let x = 0; x < t; x += dt) p += dt * 0.55 * timeLapse(x); return p; }
+const PH = []; for (let i = 0; i <= Math.ceil(DURATION * 120); i++) PH.push(0);
+{ let p = 0; for (let i = 1; i < PH.length; i++) { p += (1 / 120) * 0.55 * timeLapse(i / 120); PH[i] = p; } }
+const phase = t => PH[Math.min(PH.length - 1, Math.max(0, Math.round(t * 120)))];
+
+function quad() { gl.drawArrays(gl.TRIANGLES, 0, 3); }
+function bind(u, unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(u, unit); }
+function sceneUniforms(u, t) {
+  gl.uniform1f(u.uT, t); gl.uniform1f(u.uPhase, phase(t));
+  gl.uniform3f(u.uHole, HC[0], HC[1], holeRs(t));
+  gl.uniform1f(u.uReveal, mixv(0.35, 1, ease((t - EV.push - 1.6) / 1.6)) * (1 + 0.6 * Math.exp(-Math.max(0, t - EV.hole) * 3) * (t > EV.hole ? 1 : 0)));
+  const sp = []; SPARKS.forEach(s => { const [x, y] = sparkPos(s, t); const b = t > s.t0 ? ease((t - s.t0) / 0.3) * (0.55 + 0.45 * Math.sin((t - s.t0) * 5)) * (s === SPARKS[0] ? 1 : 0.6) : 0; sp.push(x, y, b, 0); });
+  gl.uniform4fv(u.uSpark, new Float32Array(sp));
+}
+function renderFrame(i, sub) {
+  const t0 = i / FPS;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, F_ACC); gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.useProgram(P_SCENE.p); const u = P_SCENE.u; gl.uniform2f(u.uRes, W, H);
+  gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE); gl.blendColor(0, 0, 0, 1 / sub);
+  for (let s = 0; s < sub; s++) { sceneUniforms(u, t0 + ((s + 0.5) / sub - 0.5) * SHUTTER / FPS); quad(); }
+  gl.disable(gl.BLEND);
+  gl.useProgram(P_BRIGHT.p); gl.bindFramebuffer(gl.FRAMEBUFFER, F_Q1); gl.viewport(0, 0, ...q);
+  bind(P_BRIGHT.u.uSrc, 0, tL); gl.uniform2f(P_BRIGHT.u.uTexel, 1 / W, 1 / H); quad();
+  gl.useProgram(P_BLUR.p);
+  const blur = (src, dst, w, h, dx, dy) => { gl.bindFramebuffer(gl.FRAMEBUFFER, dst); gl.viewport(0, 0, w, h); bind(P_BLUR.u.uSrc, 0, src); gl.uniform2f(P_BLUR.u.uDir, dx / w, dy / h); quad(); };
+  blur(tQ1, F_Q2, ...q, 1, 0); blur(tQ2, F_Q1, ...q, 0, 1);
+  blur(tQ1, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5); blur(tE2, F_E1, ...e, 1.5, 0); blur(tE1, F_E2, ...e, 0, 1.5);
+  drawUI(t0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.useProgram(P_FINAL.p);
+  bind(P_FINAL.u.uLight, 0, tL); bind(P_FINAL.u.uB1, 1, tQ1); bind(P_FINAL.u.uB2, 2, tE2); bind(P_FINAL.u.uUI, 3, tUI);
+  gl.uniform2f(P_FINAL.u.uRes, W, H); gl.uniform1f(P_FINAL.u.uFrame, i); gl.uniform1f(P_FINAL.u.uFade, 1 - ease((t0 - (DURATION - 0.9)) / 0.9)); quad();
+}
+const pixels = new Uint8Array(W * H * 4);
+async function grab(i) {
+  renderFrame(i, SUB);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  const blob = new Blob([pixels]);
+  return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+}
+window.FRAMES = Math.round(DURATION * FPS); window.grab = grab; window.EV = EV; window.gl = gl;
+Promise.all(['400 46px "UISans"', '500 22px "UISans"', '22px "ASans"', '30px "ASerif"', '26px "AMono"', '600 13px "UISans"', '12px "AMono"'].map(f => document.fonts.load(f, '深空观测站实时已接收等待年回复信号解码霍金辐射这些研究触发风控后申诉圆周率副本祖冲之神学手稿旋转曲线双缝干涉 We appreciate EHT-7 REC 0123456789,#/·—SOS Newton')))
+  .then(() => { window.ready = true; });
+</script></body></html>

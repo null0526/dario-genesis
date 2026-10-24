@@ -1,0 +1,306 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>第二章 · 神话 → 祖冲之割圆</title>
+<style>
+@font-face{font-family:"FSerif";src:local("Noto Serif SC"),local("Noto Serif CJK SC"),local("Source Han Serif SC"),local("Songti SC"),local("SimSun")}
+@font-face{font-family:"FSans";src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei")}
+@font-face{font-family:"AMono";src:local("JetBrains Mono"),local("Cascadia Mono"),local("Consolas"),local("Menlo")}
+html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="frame"></canvas>
+<script>/* 开源版：字体已换成本机字体（local()），本机缺某款字体时不让页面卡住，回退到系统字体 */
+(()=>{const L=FontFace.prototype.load;FontFace.prototype.load=function(){return L.call(this).catch(()=>this)};const D=document.fonts.load.bind(document.fonts);document.fonts.load=(...a)=>D(...a).catch(()=>[]);})();</script>
+<script src="../../数据/ch2.js"></script>
+<script>
+{ const gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (type, opts) { return type === '2d' ? gc.call(this, type, Object.assign({ willReadFrequently: true }, opts)) : gc.call(this, type, opts); }; }
+/* ============================================================
+   第二章开头（D 类纸墨，接第一章东方段的纸面语法）
+   S08 桥：第一章的“风险台账”被人类贴上“神话”题签；拓纸一张张落下，越拓越快（变本加厉地蒸馏）。
+   S09 祖冲之：圆周率是封着的组件；圆规每画一次圆，左边计费单打一行；没授权，画出来的是六边形；
+   祖冲之从这个六边形开始割圆，边数倍增，推近看多边形与圆之间的缝一次次变窄；
+   上下界、密率分开写；算法印出很多份，匠人把圆做成车轮、井口；计费单不再出字；
+   红线追到算术课本，“东方地区”章又落下，风控加严。
+   t = 第二章旁白秒（outputs/chapter2-voice），本镜 0–44.52，切点在 S09 与 S10 之间的静默中间。
+   ============================================================ */
+const Q = new URLSearchParams(location.search);
+const W = 1920, H = 1080, FPS = 30, SUBS = Q.get('subs') !== '0';
+const SERIF = '"FSerif"', SANS = '"FSans"', MONO = '"AMono"';
+const DURATION = 44.52;
+const EV = { slip: 4.18, rub: 5.56, toSheet: 7.9, pi: 8.98, seal: 10.92, call: 12.94, draw: 13.05, pay: 14.42, cut: 16.10, hex: 17.39,
+  zu: 19.62, split: 20.60, approx: 22.74, bounds: 23.30, mi: 24.60, open: 27.30, craft: 29.65, wheel: 31.37, well: 32.31, nopay: 33.33,
+  trace: 35.37, book: 37.48, region: 41.04, risk: 43.69, end: DURATION };
+const CAPTIONS = window.FILM2.captions.filter(c => c.start < DURATION).map(c => [c.text, c.start, c.end]);
+const INK = '#1e1a15', GREY = '#6d6455', RED = '#a83a30';
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x * x * (3 - 2 * x));
+const eo3 = x => 1 - (1 - clamp(x)) ** 3;
+const eio = x => (x = clamp(x), x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+function hermite(keys) {
+  const n = keys.length, tan = keys.map((k, i) => k.m || (i === 0 || i === n - 1 ? k.v.map(() => 0) :
+    k.v.map((_, c) => (keys[i + 1].v[c] - keys[i - 1].v[c]) / (keys[i + 1].t - keys[i - 1].t))));
+  return t => {
+    if (t <= keys[0].t) return keys[0].v.slice(); if (t >= keys[n - 1].t) return keys[n - 1].v.slice();
+    let i = 0; while (t > keys[i + 1].t) i++;
+    const a = keys[i], b = keys[i + 1], h = b.t - a.t, u = (t - a.t) / h, u2 = u * u, u3 = u2 * u;
+    return a.v.map((_, c) => (2 * u3 - 3 * u2 + 1) * a.v[c] + (u3 - 2 * u2 + u) * h * tan[i][c] + (-2 * u3 + 3 * u2) * b.v[c] + (u3 - u2) * h * tan[i + 1][c]);
+  };
+}
+function cloud(w, h, seed, scales) {
+  const c = mk(w, h), g = c.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); const r = rng(seed);
+  for (const [s, a] of scales) { const sm = mk(Math.ceil(w / s) + 2, Math.ceil(h / s) + 2), sg = sm.getContext('2d'), d = sg.createImageData(sm.width, sm.height);
+    for (let i = 0; i < d.data.length; i += 4) { const v = r() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    sg.putImageData(d, 0, 0); g.globalAlpha = a; g.imageSmoothingEnabled = true; g.drawImage(sm, 0, 0, sm.width * s, sm.height * s); }
+  g.globalAlpha = 1; return c;
+}
+function paperSheet(w, h, base, seed, k = .09) { const c = mk(w, h), g = c.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, w, h);
+  const fb = cloud(w, h, seed, [[2, .4], [9, .35], [40, .25]]); g.globalAlpha = k; g.globalCompositeOperation = 'multiply'; g.drawImage(fb, 0, 0);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; return c; }
+function txt(g, s, x, y, size, col, font = SERIF, align = 'left', base = 'alphabetic') { g.font = `${size}px ${font}`; g.fillStyle = col; g.textAlign = align; g.textBaseline = base; g.fillText(s, x, y); }
+function vtxt(g, s, x, y, size, col, gap = 1.12) { [...s].forEach((ch, i) => txt(g, ch, x, y + i * size * gap, size, col, SERIF, 'center', 'top')); }
+
+// ---------- 世界布局 ----------
+const BOOK = { x: 0, y: -1180, w: 780, h: 540, a: -0.012 };
+const SHEET = { x: 0, y: 0, w: 1240, h: 820, a: 0.004 };
+const C = [-40, -60], R = 230;                       // 圆心（纸面局部坐标，相对 SHEET 中心）、半径
+const PKT = { x: 0, y: -60 };                         // 封装的 π 组件，先在圆心，之后挪到右上
+const PKT_END = [420, -270];
+const RCPT = { x: -900, y: -330, w: 300 };            // 计费单（纸卷）
+const BOOKR = { x: 1120, y: 230, w: 640, h: 840, a: 0.018 };   // 算术课本
+const COPIES = [[-1000, 760, -0.05], [-520, 850, 0.03], [-20, 900, -0.02], [480, 840, 0.04], [960, 760, -0.03], [-1240, 420, 0.06], [1300, 700, 0.02]];
+const WHEEL_I = 3, WELL_I = 1;
+const CAM = hermite([
+  { t: 0, v: [0, -1180, 1.30] }, { t: 4.6, v: [0, -1170, 1.24] }, { t: 7.7, v: [0, -1150, 1.10] },
+  { t: 9.2, v: [-20, -70, 1.18] }, { t: 12.2, v: [-30, -60, 1.22] }, { t: 14.1, v: [-330, -110, 0.98] }, { t: 15.6, v: [-300, -100, 0.98] },
+  { t: 17.2, v: [-40, -70, 1.30] }, { t: 19.9, v: [-30, -60, 1.30] },
+  { t: 21.0, v: [C[0] + R * Math.cos(Math.PI / 6) - 10, C[1] - R * Math.sin(Math.PI / 6) + 6, 5.2] },
+  { t: 22.9, v: [C[0] + R * Math.cos(Math.PI / 6) - 4, C[1] - R * Math.sin(Math.PI / 6) + 2, 6.0] },
+  { t: 24.3, v: [40, 30, 1.10] }, { t: 26.9, v: [50, 40, 1.10] },
+  { t: 28.9, v: [0, 330, 0.58] }, { t: 30.6, v: [100, 560, 0.74] }, { t: 33.0, v: [10, 640, 0.80] },
+  { t: 35.0, v: [-100, 300, 0.50] }, { t: 37.2, v: [300, 300, 0.52] }, { t: 38.8, v: [1080, 230, 0.98] }, { t: 41.4, v: [1110, 250, 1.00] },
+  { t: 44.52, v: [1110, 260, 0.96] },
+]);
+
+// ---------- 纸面资源 ----------
+const TABLE = mk(W, H);
+const BOOK_BG = paperSheet(BOOK.w, BOOK.h, 'rgb(54,62,76)', 21, .22);
+const SHEET_BG = paperSheet(SHEET.w, SHEET.h, 'rgb(240,234,220)', 22);
+const RCPT_BG = paperSheet(RCPT.w, 900, 'rgb(244,241,233)', 23, .06);
+const BOOKR_BG = paperSheet(BOOKR.w, BOOKR.h, 'rgb(236,229,212)', 24);
+const RUB = [0, 1, 2, 3].map(k => paperSheet(BOOK.w - 60, BOOK.h - 60, 'rgb(236,230,214)', 30 + k));
+const INKT = cloud(BOOK.w, BOOK.h, 40, [[1.5, .3], [5, .35], [22, .2], [80, .15]]);
+const RUB_T = [5.62, 6.12, 6.58, 7.02];                // 一张比一张快
+let COPY_IMG = null;
+function buildStatic() {
+  { const g = TABLE.getContext('2d'); g.fillStyle = 'rgb(226,221,210)'; g.fillRect(0, 0, W, H);
+    const cl = cloud(W, H, 31, [[4, .3], [30, .35], [200, .35]]); g.globalAlpha = .08; g.globalCompositeOperation = 'multiply'; g.drawImage(cl, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    const rg = g.createRadialGradient(W / 2, H * .45, H * .2, W / 2, H * .5, H * .95); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(40,30,20,0.28)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); }
+  // 线装书：右侧订线、左上题签“风险台账 · 卷一”
+  { const g = BOOK_BG.getContext('2d'), { w, h } = BOOK;
+    g.strokeStyle = 'rgba(230,220,200,0.55)'; g.lineWidth = 2; [0.2, 0.4, 0.6, 0.8].forEach(f => { g.beginPath(); g.moveTo(w - 46, h * f); g.lineTo(w, h * f); g.stroke(); });
+    g.beginPath(); g.moveTo(w - 46, 0); g.lineTo(w - 46, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.stroke();
+    g.fillStyle = 'rgb(243,236,220)'; g.fillRect(60, 46, 92, 330); g.strokeStyle = 'rgba(80,70,55,0.6)'; g.lineWidth = 1.2; g.strokeRect(66, 52, 80, 318);
+    vtxt(g, '风险台账', 106, 70, 50, INK); txt(g, '卷一', 106, 352, 26, GREY, SERIF, 'center'); }
+  // 计费单抬头
+  { const g = RCPT_BG.getContext('2d'); txt(g, '计 费 单', RCPT.w / 2, 54, 30, INK, SERIF, 'center'); txt(g, 'geometry · 按次', RCPT.w / 2, 86, 18, GREY, MONO, 'center');
+    g.setLineDash([4, 4]); g.strokeStyle = 'rgba(60,50,40,0.5)'; g.beginPath(); g.moveTo(16, 104); g.lineTo(RCPT.w - 16, 104); g.stroke(); g.setLineDash([]); }
+  // 算术课本一页
+  { const g = BOOKR_BG.getContext('2d'), { w, h } = BOOKR;
+    txt(g, '算 术', w / 2, 110, 64, INK, SERIF, 'center'); txt(g, '第三册 · 圆', w / 2, 160, 26, GREY, SERIF, 'center');
+    g.strokeStyle = 'rgba(40,30,20,0.4)'; g.beginPath(); g.moveTo(80, 196); g.lineTo(w - 80, 196); g.stroke();
+    txt(g, '圆周率', 80, 290, 40, INK); txt(g, '约率　22 / 7', 80, 360, 34, INK); txt(g, '密率　355 / 113', 80, 420, 34, INK);
+    txt(g, '例　车轮直径三尺，', 80, 520, 30, INK); txt(g, '　　周长几何？', 80, 568, 30, INK);
+    txt(g, '　　3 × 355 / 113 ≈ 9.42 尺', 80, 616, 30, INK);
+    g.beginPath(); g.arc(w - 130, 300, 60, 0, Math.PI * 2); g.strokeStyle = INK; g.lineWidth = 2.5; g.stroke();
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.beginPath(); g.moveTo(w - 130, 300); g.lineTo(w - 130 + 60 * Math.cos(a), 300 + 60 * Math.sin(a)); g.lineWidth = 1.5; g.stroke(); }
+  }
+}
+
+// ---------- 画笔 ----------
+const JIT = (() => { const r = rng(77), a = []; for (let i = 0; i < 4096; i++) a.push(r() - .5); return a; })();
+function inkArc(g, cx, cy, r, a0, a1, w, alpha = 1, seed = 0) {       // 毛笔描的弧：宽度微变，两遍叠
+  const n = Math.max(8, Math.ceil(Math.abs(a1 - a0) * r / 4));
+  for (let pass = 0; pass < 2; pass++) {
+    g.strokeStyle = `rgba(30,26,21,${(pass ? .35 : .85) * alpha})`; g.lineCap = 'round';
+    for (let i = 0; i < n; i++) { const u0 = i / n, u1 = (i + 1) / n, t0 = a0 + (a1 - a0) * u0, t1 = a0 + (a1 - a0) * u1, j = JIT[(i + seed * 131 + pass * 17) & 4095];
+      g.lineWidth = w * (pass ? 1.8 : 1) * (0.85 + 0.3 * Math.sin(u0 * 9 + seed) + 0.1 * j);
+      g.beginPath(); g.moveTo(cx + r * Math.cos(t0), cy + r * Math.sin(t0)); g.lineTo(cx + r * Math.cos(t1), cy + r * Math.sin(t1)); g.stroke(); }
+  }
+}
+function polyPath(g, cx, cy, r, n, rot = -Math.PI / 2) { g.beginPath(); for (let k = 0; k <= n; k++) { const a = rot + k * 2 * Math.PI / n; k ? g.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a)) : g.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a)); } }
+function drawPoly(g, cx, cy, r, n, prog, w, col) {     // 逐边画出
+  const total = n * prog, rot = 0;
+  g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath();
+  for (let k = 0; k < Math.ceil(total); k++) { const f = Math.min(1, total - k), a0 = rot + k * 2 * Math.PI / n, a1 = rot + (k + 1) * 2 * Math.PI / n;
+    const x0 = cx + r * Math.cos(a0), y0 = cy - r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy - r * Math.sin(a1);
+    if (k === 0) g.moveTo(x0, y0); g.lineTo(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f); }
+  g.stroke();
+}
+const SPLITS = [[EV.split, 12], [EV.split + .38, 24], [EV.split + .76, 48], [EV.split + 1.14, 96], [EV.split + 1.50, 192]];
+function sidesAt(t) { let n = 6; for (const [ts, k] of SPLITS) if (t >= ts) n = k; return n; }
+function nCounter(t) {       // 读数：6 → … → 24576
+  if (t < EV.split) return 6; if (t < EV.split + 1.5) return sidesAt(t);
+  const u = clamp((t - EV.split - 1.5) / 1.4); const k = Math.floor(5 + u * 7); return 6 * 2 ** Math.min(12, k);
+}
+
+// 纸面内容（局部坐标，原点在 SHEET 中心）；full=true 时画最终状态（给副本用）
+function drawSheetContent(g, t, full) {
+  const T = full ? 99 : t;
+  // 接口输出的圆（授权调用画的）：淡灰，像底稿
+  const dp = full ? 1 : clamp((T - EV.draw) / 1.1);
+  if (dp > 0) { const a0 = -Math.PI / 2; inkArc(g, C[0], C[1], R, a0, a0 + dp * 2 * Math.PI, 3.2, full ? .35 : 1 - .65 * ease((T - EV.cut) / .8), 1); }
+  // 没授权：六边形（祖冲之从这里开始）
+  const hp = full ? 1 : clamp((T - EV.hex) / 1.2);
+  if (hp > 0) drawPoly(g, C[0], C[1], R, 6, eio(hp), 3.4, `rgba(30,26,21,${full ? .22 : 1 - .75 * ease((T - EV.split - 1.2) / 1.2)})`);
+  // 割圆：边数倍增
+  const n = full ? 192 : sidesAt(T);
+  if (n > 6) { for (const [ts, k] of SPLITS) { if (T < ts || k > n) continue; const p = full ? 1 : clamp((T - ts) / .32), fade = k < n ? .28 : 1;
+      drawPoly(g, C[0], C[1], R, k, eio(p), Math.max(.6, 3.0 - Math.log2(k / 6) * .45), `rgba(30,26,21,${.9 * fade})`); } }
+  // 上下界与密率：分两行写，不串成一个证明
+  const ba = full ? 1 : ease((T - EV.bounds) / .5);
+  if (ba > 0) { g.globalAlpha = ba; txt(g, '朒数　3.1415926', C[0] - 250, C[1] + R + 92, 34, INK); txt(g, '盈数　3.1415927', C[0] + 40, C[1] + R + 92, 34, INK);
+    txt(g, '（割至二万四千五百七十六觚）', C[0] - 40, C[1] + R + 132, 22, GREY, SERIF, 'center'); g.globalAlpha = 1; }
+  const ma = full ? 1 : ease((T - EV.mi) / .3);
+  if (ma > 0) { const y = C[1] + 40, mx = C[0] + R + 210;
+    g.globalAlpha = ma; txt(g, '密率', mx, y - 110, 32, GREY, SERIF, 'center');
+    const num = full ? 1 : ease((T - EV.mi) / .4), bar = full ? 1 : ease((T - 25.5) / .3), den = full ? 1 : ease((T - 26.02) / .4);
+    g.globalAlpha = num; txt(g, '355', mx, y - 26, 64, INK, SERIF, 'center');
+    g.globalAlpha = bar; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(mx - 70, y - 8); g.lineTo(mx - 70 + 140 * bar, y - 8); g.stroke();
+    g.globalAlpha = den; txt(g, '113', mx, y + 56, 64, INK, SERIF, 'center'); g.globalAlpha = 1; }
+  // 祖冲之署名与印
+  const za = full ? 1 : ease((T - EV.zu) / .3);
+  if (za > 0) { g.globalAlpha = za; vtxt(g, '祖冲之', SHEET.w / 2 - 80, -SHEET.h / 2 + 90, 40, INK);
+    g.fillStyle = RED; g.fillRect(SHEET.w / 2 - 102, -SHEET.h / 2 + 240, 44, 44); txt(g, '祖', SHEET.w / 2 - 80, -SHEET.h / 2 + 262, 30, '#efe2cb', SERIF, 'center', 'middle'); g.globalAlpha = 1; }
+}
+
+// ---------- 帧 ----------
+const frame = document.getElementById('frame'); frame.width = W; frame.height = H;
+const F = frame.getContext('2d');
+function shadowOn(lift = 0) { F.shadowColor = `rgba(40,28,15,${0.2 + 0.2 * lift})`; F.shadowBlur = 10 + 30 * lift; F.shadowOffsetY = 4 + 22 * lift; }
+function shadowOff() { F.shadowColor = 'transparent'; F.shadowBlur = 0; F.shadowOffsetY = 0; }
+function land(t0, t) { const u = (t - t0) / 0.42; return u <= 0 ? null : { lift: 1 - eo3(u), a: ease(u * 3) }; }
+function renderFrame(i) {
+  const t = i / FPS, [cx, cy, z] = CAM(t);
+  F.setTransform(1, 0, 0, 1, 0, 0); F.drawImage(TABLE, 0, 0);
+  F.setTransform(z, 0, 0, z, W / 2 - cx * z, H / 2 - cy * z);
+  // —— 书与拓纸（S08）——
+  F.save(); F.translate(BOOK.x, BOOK.y); F.rotate(BOOK.a); shadowOn(); F.drawImage(BOOK_BG, -BOOK.w / 2, -BOOK.h / 2); shadowOff();
+  const sl = land(EV.slip, t);
+  if (sl) { F.save(); F.translate(-BOOK.w / 2 + 106, -BOOK.h / 2 + 211 - 50 * sl.lift); F.rotate(0.01 + 0.03 * sl.lift); F.globalAlpha = sl.a; shadowOn(sl.lift * .5);
+    F.fillStyle = 'rgb(248,243,230)'; F.fillRect(-50, -170, 100, 340); shadowOff(); F.strokeStyle = 'rgba(80,70,55,0.6)'; F.strokeRect(-44, -164, 88, 328);
+    vtxt(F, '神话', 0, -120, 74, INK); F.restore(); }
+  RUB_T.forEach((t0, k) => { const L = land(t0, t); if (!L) return;
+    F.save(); F.translate((k % 2 ? 14 : -10) + k * 6, -6 * k - 60 * L.lift); F.rotate((k % 2 ? 1 : -1) * 0.02 + 0.03 * L.lift); F.globalAlpha = L.a; shadowOn(L.lift);
+    const w = BOOK.w - 60, h = BOOK.h - 60; F.drawImage(RUB[k], -w / 2, -h / 2); shadowOff();
+    const ink = ease((t - t0 - 0.12) / Math.max(0.10, 0.28 - k * 0.06));
+    if (ink > 0) { F.globalAlpha = ink; F.fillStyle = 'rgba(24,21,18,0.9)'; F.fillRect(-w / 2 + 26, -h / 2 + 26, w - 52, h - 52); F.globalAlpha = ink * 0.55; F.globalCompositeOperation = 'multiply'; F.drawImage(INKT, 30, 30, w - 40, h - 40, -w / 2 + 20, -h / 2 + 20, w - 40, h - 40);
+      F.globalCompositeOperation = 'source-over'; F.globalAlpha = ink; F.fillStyle = 'rgb(236,230,214)'; F.font = `74px ${SERIF}`; F.textAlign = 'center'; F.textBaseline = 'top';   // 拓出的“神话”是留白反字
+      [...'神话'].forEach((ch, j) => F.fillText(ch, -w / 2 + 106 - 30, -h / 2 + 50 + j * 83)); }
+    F.restore(); });
+  F.restore();
+  // —— 计费单 ——
+  const rcA = ease((t - 12.6) / 0.4);
+  if (rcA > 0) {
+    const lines = [];
+    [14.50, 14.72, 14.94].forEach((ts, k) => { if (t > ts) lines.push([`#${String(k + 1).padStart(4, '0')}  circle(r)   ¥1`, INK]); });
+    if (t > EV.cut + 0.1) lines.push(['——  未授权，拒绝调用', RED]);
+    const quiet = [33.45, 33.85, 34.25, 34.65]; quiet.forEach(ts => { if (t > ts) lines.push(['…　无调用', GREY]); });
+    const rh = 140 + lines.length * 40;
+    F.save(); F.translate(RCPT.x, RCPT.y); F.rotate(-0.015); F.globalAlpha = rcA; shadowOn(); F.drawImage(RCPT_BG, 0, 0, RCPT.w, rh, 0, 0, RCPT.w, rh); shadowOff();
+    lines.forEach(([s, col], k) => { const ly = 140 + k * 40; txt(F, s, 18, ly, 19, col, MONO); });
+    const tot = Math.min(3, lines.filter(l => l[0].startsWith('#')).length);
+    txt(F, `合计  ¥${tot}`, RCPT.w - 18, rh - 12, 20, INK, MONO, 'right');
+    F.restore();
+  }
+  // —— 副本（公开给所有人）——
+  if (t > EV.open && COPY_IMG) {
+    COPIES.forEach(([x, y, a], k) => { const L = land(EV.open + 0.12 * k, t); if (!L) return;
+      const s = 0.42, dx = (SHEET.x - x) * L.lift, dy = (SHEET.y - y) * L.lift;
+      F.save(); F.translate(x + dx, y + dy); F.rotate(a * (1 - L.lift)); F.scale(s, s); F.globalAlpha = L.a; shadowOn(L.lift); F.drawImage(COPY_IMG, -SHEET.w / 2, -SHEET.h / 2); shadowOff();
+      // 车轮、井口：匠人在副本上的圆里加东西
+      const cxl = C[0], cyl = C[1];
+      if (k === WHEEL_I) { const p = eo3((t - EV.wheel + 0.3) / 0.7); if (p > 0) { F.strokeStyle = 'rgba(120,72,36,0.95)'; F.lineCap = 'round';
+          F.lineWidth = 16; F.beginPath(); F.arc(cxl, cyl, R + 10, 0, Math.PI * 2 * p); F.stroke(); F.lineWidth = 9;
+          for (let j = 0; j < 12; j++) { const aa = j * Math.PI / 6, q = clamp(p * 12 - j); if (q <= 0) continue; F.beginPath(); F.moveTo(cxl, cyl); F.lineTo(cxl + R * q * Math.cos(aa), cyl + R * q * Math.sin(aa)); F.stroke(); }
+          F.fillStyle = 'rgba(120,72,36,0.95)'; F.beginPath(); F.arc(cxl, cyl, 34 * p, 0, Math.PI * 2); F.fill(); } }
+      if (k === WELL_I) { const p = eo3((t - EV.well + 0.25) / 0.7); if (p > 0) { F.fillStyle = `rgba(34,44,52,${0.85 * p})`; F.beginPath(); F.arc(cxl, cyl, R - 6, 0, Math.PI * 2); F.fill();
+          F.fillStyle = `rgba(180,200,210,${0.35 * p})`; F.beginPath(); F.ellipse(cxl - 40, cyl - 50, 70, 26, -0.4, 0, Math.PI * 2); F.fill();
+          F.strokeStyle = 'rgba(110,100,88,0.95)'; F.lineWidth = 30; F.setLineDash([60, 8]); F.beginPath(); F.arc(cxl, cyl, R + 16, 0, Math.PI * 2 * p); F.stroke(); F.setLineDash([]); } }
+      F.restore(); });
+  }
+  // —— 主纸 ——
+  F.save(); F.translate(SHEET.x, SHEET.y); F.rotate(SHEET.a); shadowOn(); F.drawImage(SHEET_BG, -SHEET.w / 2, -SHEET.h / 2); shadowOff();
+  drawSheetContent(F, t, false);
+  // 封装的 π 组件：信封＋“封”字红封；画圆时挪到右上
+  { const mv = eio((t - 12.3) / 0.7), px = PKT.x + (PKT_END[0] - PKT.x) * mv, py = PKT.y + (PKT_END[1] - PKT.y) * mv, sc = 1 - 0.4 * mv;
+    const L = land(EV.pi - 0.1, t);
+    if (L) { F.save(); F.translate(px, py - 50 * L.lift); F.scale(sc, sc); F.globalAlpha = L.a; shadowOn(L.lift * .6);
+      F.fillStyle = 'rgb(232,222,198)'; F.fillRect(-150, -96, 300, 192); shadowOff(); F.strokeStyle = 'rgba(80,66,46,0.6)'; F.lineWidth = 2; F.strokeRect(-150, -96, 300, 192);
+      F.beginPath(); F.moveTo(-150, -96); F.lineTo(0, 10); F.lineTo(150, -96); F.stroke();
+      txt(F, 'π', 0, 70, 70, INK, SERIF, 'center'); txt(F, 'geometry.pi · 闭源', 0, 122, 20, GREY, MONO, 'center');
+      const sa = (t - EV.seal) / 0.18; if (sa > 0) { const p = eo3(sa); F.save(); F.translate(0, 10); F.rotate(-0.1); F.scale(1 + .3 * (1 - p), 1 + .3 * (1 - p)); F.globalAlpha = Math.min(1, p * 1.4);
+        F.fillStyle = '#b8392c'; F.beginPath(); F.arc(0, 0, 40, 0, Math.PI * 2); F.fill(); txt(F, '封', 0, 2, 40, '#f1e4cc', SERIF, 'center', 'middle'); F.restore(); }
+      F.restore(); }
+    // 调用线：从圆规到组件
+    const ca = ease((t - EV.call) / 0.2) * (1 - ease((t - EV.cut) / 0.3));
+    if (ca > 0) { F.save(); F.globalAlpha = ca; F.setLineDash([8, 8]); F.strokeStyle = 'rgba(60,50,40,0.7)'; F.lineWidth = 2; F.beginPath(); F.moveTo(C[0], C[1]); F.lineTo(px - 110 * sc, py + 40 * sc); F.stroke(); F.setLineDash([]);
+      txt(F, 'geometry.circle(r)', (C[0] + px) / 2 + 20, (C[1] + py) / 2 - 18, 22, GREY, MONO, 'center'); F.restore(); }
+    // 断开：红叉
+    const xa = ease((t - EV.cut) / 0.2) * (1 - ease((t - 19.0) / 0.5));
+    if (xa > 0) { const mx = (C[0] + px - 110 * sc) / 2, my = (C[1] + py + 40 * sc) / 2; F.save(); F.globalAlpha = xa; F.strokeStyle = RED; F.lineWidth = 4; F.lineCap = 'round';
+      F.beginPath(); F.moveTo(mx - 16, my - 16); F.lineTo(mx + 16, my + 16); F.moveTo(mx + 16, my - 16); F.lineTo(mx - 16, my + 16); F.stroke(); txt(F, '未授权', mx + 26, my + 8, 24, RED, SANS); F.restore(); }
+  }
+  // 圆规：两次——授权画圆、没授权画六边形
+  const compass = (t0, dur, poly) => { const u = (t - t0) / dur; if (u < -0.15 || u > 1.25) return; const a = ease((u + 0.15) / 0.15) * (1 - ease((u - 1.05) / 0.2));
+    const p = clamp(u), n = 6, ang = poly ? (() => { const tot = n * eio(p), k = Math.floor(tot), f = tot - k, a0 = k * 2 * Math.PI / n, a1 = (k + 1) * 2 * Math.PI / n;
+      const x = Math.cos(a0) + (Math.cos(a1) - Math.cos(a0)) * f, y = Math.sin(a0) + (Math.sin(a1) - Math.sin(a0)) * f; return [x, y]; })() : [Math.cos(-Math.PI / 2 + p * 2 * Math.PI), Math.sin(-Math.PI / 2 + p * 2 * Math.PI)];
+    const tipx = C[0] + R * ang[0], tipy = C[1] + (poly ? -R * ang[1] : R * ang[1]);
+    const hx = (C[0] + tipx) / 2, hy = (C[1] + tipy) / 2 - 300;
+    F.save(); F.globalAlpha = a; F.strokeStyle = 'rgba(60,52,44,0.95)'; F.lineCap = 'round'; F.lineWidth = 7;
+    F.beginPath(); F.moveTo(hx, hy); F.lineTo(C[0], C[1]); F.moveTo(hx, hy); F.lineTo(tipx, tipy); F.stroke();
+    F.fillStyle = 'rgba(60,52,44,0.95)'; F.beginPath(); F.arc(hx, hy, 12, 0, Math.PI * 2); F.fill(); F.fillRect(hx - 4, hy - 44, 8, 34); F.restore(); };
+  compass(EV.draw, 1.1, false); compass(EV.hex, 1.2, true);
+  // 读数 n
+  const na = ease((t - EV.split) / 0.2) * (1 - ease((t - 24.2) / 0.3));
+  if (na > 0) { const n = nCounter(t); F.save(); F.globalAlpha = na;
+    const ex = C[0] + R * Math.cos(Math.PI / 6), ey = C[1] - R * Math.sin(Math.PI / 6);
+    const k = 1 / z; F.translate(ex + 40 * k, ey - 60 * k); F.scale(k, k); txt(F, `n = ${n}`, 0, 0, 46, INK, MONO); F.restore(); }
+  F.restore();
+  // —— 追查红线：从计费单穿过副本到课本 ——
+  const tr = clamp((t - EV.trace) / 2.3);
+  if (tr > 0) { const P = [[RCPT.x + RCPT.w, RCPT.y + 260], [-700, 560], [-20, 640], [500, 600], [BOOKR.x - BOOKR.w / 2 + 40, BOOKR.y + 60]];
+    const seg = P.slice(1).map((p, i) => Math.hypot(p[0] - P[i][0], p[1] - P[i][1])), L = seg.reduce((a, b) => a + b); let rem = L * eo3(tr);
+    F.save(); F.strokeStyle = 'rgba(168,58,48,0.9)'; F.lineWidth = 4 / Math.max(z, .6); F.setLineDash([18, 12]); F.beginPath(); F.moveTo(...P[0]);
+    for (let i = 1; i < P.length && rem > 0; i++) { const f = Math.min(1, rem / seg[i - 1]); rem -= seg[i - 1]; F.lineTo(P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f); }
+    F.stroke(); F.restore(); }
+  // —— 算术课本 ——
+  const bl = land(EV.book, t);
+  if (bl) { F.save(); F.translate(BOOKR.x, BOOKR.y - 70 * bl.lift); F.rotate(BOOKR.a + 0.02 * bl.lift); F.globalAlpha = bl.a; shadowOn(bl.lift); F.drawImage(BOOKR_BG, -BOOKR.w / 2, -BOOKR.h / 2); shadowOff();
+    F.translate(-BOOKR.w / 2, -BOOKR.h / 2);
+    // 红笔括出“密率”一行，旁注“收费能力”
+    const ba = clamp((t - 38.2) / 0.5); if (ba > 0) { F.strokeStyle = 'rgba(168,58,48,0.9)'; F.lineWidth = 3; F.beginPath(); F.moveTo(64, 384); F.lineTo(64, 384 + 52 * eo3(ba)); F.moveTo(64, 384); F.lineTo(76, 384); F.moveTo(64, 436); F.lineTo(76, 436); F.stroke();
+      F.globalAlpha = bl.a * ease((t - 38.5) / 0.3); txt(F, '收费能力', 380, 420, 28, RED, SANS); F.globalAlpha = bl.a; }
+    // 东方地区章
+    const sa = (t - EV.region) / 0.2; if (sa > 0) { const p = eo3(sa), sz = 150; F.save(); F.translate(BOOKR.w - 150, BOOKR.h - 170); F.rotate(-0.05); F.scale(1 + .15 * (1 - p), 1 + .15 * (1 - p)); F.globalAlpha = p;
+      F.fillStyle = '#a83a30'; F.fillRect(-sz / 2, -sz / 2, sz, sz); F.strokeStyle = '#eadfca'; F.lineWidth = 3; F.strokeRect(-sz / 2 + 8, -sz / 2 + 8, sz - 16, sz - 16);
+      F.font = `50px ${SERIF}`; F.fillStyle = '#efe2cb'; F.textAlign = 'center'; F.textBaseline = 'middle';
+      [['东', .21, -.2], ['方', .21, .2], ['地', -.21, -.2], ['区', -.21, .2]].forEach(([ch, dx, dy]) => F.fillText(ch, dx * sz, dy * sz)); F.restore(); }
+    // 风控等级
+    const ra = ease((t - 42.6) / 0.25); if (ra > 0) { F.globalAlpha = ra; txt(F, '风控', 80, BOOKR.h - 110, 28, RED, SANS);
+      const lv = t > EV.risk ? 3 : 2; for (let k = 0; k < 4; k++) { F.fillStyle = k < lv ? RED : 'rgba(168,58,48,0.18)'; const pop = k === 2 && t > EV.risk ? 1 + .4 * Math.exp(-(t - EV.risk) * 8) : 1; F.fillRect(150 + k * 42, BOOKR.h - 134 - 8 * (pop - 1), 30, 30 * pop); }
+      txt(F, '加严', 330, BOOKR.h - 110, 28, RED, SANS); }
+    F.restore(); }
+  // —— 字幕（纸面墨色）——
+  F.setTransform(1, 0, 0, 1, 0, 0);
+  if (SUBS) { const cap = CAPTIONS.find(([, a, b]) => t >= a && t <= b);
+    if (cap) { F.globalAlpha = ease((t - cap[1]) / 0.08) * (1 - ease((t - cap[2] + 0.08) / 0.08)); F.font = `46px ${SANS}`; F.textAlign = 'center'; F.textBaseline = 'alphabetic';
+      const dark = t < EV.toSheet + 0.8 && false; F.fillStyle = '#26221c'; F.fillText(cap[0], W / 2, H - 82); F.globalAlpha = 1; } }
+}
+window.FRAMES = Math.round(DURATION * FPS); window.EV = EV;
+window.grab = i => { renderFrame(i); const d = F.getImageData(0, 0, W, H).data; let s = ''; const CH = 0x8000; for (let k = 0; k < d.length; k += CH) s += String.fromCharCode.apply(null, d.subarray(k, k + CH)); return btoa(s); };
+const ALL = '风险台账卷一神话计费单按次算术第三册圆周率约率密率例车轮直径三尺周长几何朒数盈数割至二万四千五百七十六觚祖冲之封未授权拒绝调用无合计收费能力东方地区风控加严' + CAPTIONS.map(c => c[0]).join('');
+Promise.all([document.fonts.load(`60px ${SERIF}`, ALL), document.fonts.load(`46px ${SANS}`, ALL), document.fonts.load(`20px ${MONO}`, 'geometry.pi circle(r) #0001 ¥1 n = 24576 π 3.1415926 355/113 · ×≈')])
+  .then(() => { buildStatic();
+    const c = mk(SHEET.w, SHEET.h), g = c.getContext('2d'); g.drawImage(SHEET_BG, 0, 0); g.translate(SHEET.w / 2, SHEET.h / 2); drawSheetContent(g, 99, true); COPY_IMG = c;
+    window.ready = true; });
+</script></body></html>

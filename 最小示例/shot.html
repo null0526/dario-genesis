@@ -1,0 +1,396 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:'NSC';src:local("Noto Sans SC"),local("Noto Sans CJK SC"),local("Source Han Sans SC"),local("PingFang SC"),local("Microsoft YaHei");font-weight:100 900;}
+@font-face{font-family:'ASans';src:local("Inter"),local("Noto Sans"),local("Helvetica Neue"),local("Arial");font-weight:100 900;}
+html,body{margin:0;background:#000}
+canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script>/* 开源版：字体已换成本机字体（local()），本机缺某款字体时不让页面卡住，回退到系统字体 */
+(()=>{const L=FontFace.prototype.load;FontFace.prototype.load=function(){return L.call(this).catch(()=>this)};const D=document.fonts.load.bind(document.fonts);document.fonts.load=(...a)=>D(...a).catch(()=>[]);})();</script>
+<script src="timeline.js"></script>
+<script>
+const W=1920,H=1080;
+const cv=document.getElementById('c');
+const ctx=cv.getContext('2d',{willReadFrequently:true}); // CPU 画布（工具索引 Q3）
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const eo=t=>1-Math.pow(1-clamp(t),3);
+const eio=t=>{t=clamp(t);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+const seg=(t,a,b)=>clamp((t-a)/(b-a));
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const SANS="'ASans','NSC',sans-serif", MONO="Consolas,'NSC',monospace";
+// 种子随机
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+// ---- 时码锚点（来自 timeline.js，由 build_voice.py 生成）----
+const S={}; TL.segments.forEach(s=>S[s.id]=s);
+const C=(id,i)=>S[id].chunks[i];           // 字幕分块
+const CS=(id,i)=>S[id].chunks[i].start, CE=(id,i)=>S[id].chunks[i].end;
+const T_AB=S.S04.end+0.45, T_BC=S.S05.end+0.30, T_CD=S.S07.end+0.30; // 场景切点：放在句后停顿里
+window.T_CUTS=[T_AB,T_BC,T_CD];
+
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
+function T(s,x,y,o={}){
+  const {size=32,weight=400,color='#1d1d1b',align='left',font=SANS,ls=0,alpha=1,base='alphabetic'}=o;
+  ctx.save();ctx.globalAlpha*=alpha;ctx.font=`${weight} ${size}px ${font}`;ctx.fillStyle=color;
+  ctx.textAlign=align;ctx.textBaseline=base;
+  if(ls){ctx.letterSpacing=ls+'px'}
+  ctx.fillText(s,x,y);ctx.restore();
+}
+function tw(s,size,weight=400,font=SANS){ctx.save();ctx.font=`${weight} ${size}px ${font}`;const w=ctx.measureText(s).width;ctx.restore();return w}
+function typed(s,t,t0,t1){const n=Math.floor(s.length*seg(t,t0,t1));return s.slice(0,n)}
+function shadowCard(x,y,w,h,r,fill='#fff',a=1){
+  ctx.save();ctx.globalAlpha*=a;ctx.shadowColor='rgba(40,34,20,.14)';ctx.shadowBlur=30;ctx.shadowOffsetY=10;
+  rr(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();ctx.restore();
+}
+function lightPage(t){
+  ctx.fillStyle='#f4f3ef';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,76);ctx.fillStyle='#e3e1db';ctx.fillRect(0,76,W,2);
+  T('ANTHROP\\C',60,50,{size:30,weight:600,ls:2});
+  T('支持中心',W-190,48,{size:24,color:'#6b6a66'});
+  ctx.beginPath();ctx.arc(W-70,38,18,0,7);ctx.fillStyle='#d9d6cc';ctx.fill();
+}
+
+// ======================= 场景 A：我的申诉（亮底网页）=======================
+const QN=7980000000, COLS=100, ROWS=18, GX=270, GY=470, GS=13.8;
+function dotGrid(t,litFrac,opts={}){
+  const {wave=0,waveT=0,alpha=1,dropK=0}=opts;
+  const N=COLS*ROWS, lit=Math.floor(N*litFrac);
+  ctx.save();ctx.globalAlpha*=alpha;
+  for(let i=0;i<N;i++){
+    const c=i%COLS, r=(i/COLS)|0;
+    let x=GX+c*GS+3, y=GY+r*GS+3;
+    if(wave>0){ // 欢呼：涟漪从“您”的位置向外扩散
+      const d=Math.hypot(c-(COLS-3),(r-(ROWS-1))*1.3);
+      const ph=(waveT*9-d*0.22);
+      if(ph>0&&ph<Math.PI*2) y-=Math.sin(ph)*9*wave*Math.max(0,1-d/90);
+    }
+    ctx.fillStyle=i<lit?'#bdb8aa':'#e7e4dc';
+    ctx.beginPath();ctx.arc(x,y,3.1,0,7);ctx.fill();
+  }
+  // “您”
+  const ui=N-6, uc=ui%COLS, ur=(ui/COLS)|0;
+  let ux=GX+uc*GS+3, uy=GY+ur*GS+3;
+  ctx.fillStyle='#d97757';ctx.beginPath();ctx.arc(ux,uy,6.5,0,7);ctx.fill();
+  const pulse=(t*0.9)%1;
+  ctx.strokeStyle=`rgba(217,119,87,${0.55*(1-pulse)})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(ux,uy,7+pulse*20,0,7);ctx.stroke();
+  T('您',ux,uy+44,{size:22,weight:600,color:'#d97757',align:'center'});
+  ctx.restore();
+}
+function sceneA(t){
+  lightPage(t);
+  const a0=eo(seg(t,0.9,1.6));
+  const cy=150+(1-a0)*40;
+  ctx.save();ctx.globalAlpha=a0;
+  shadowCard(210,cy,1500,720,18);
+  T('我的申诉',270,cy+80,{size:40,weight:600});
+  T('主题   申诉 · Solar-System-Workspace-01',270,cy+128,{size:24,color:'#6b6a66'});
+  // 已受理
+  const ch=eo(seg(t,CS('S02',0)-0.2,CS('S02',0)+0.2));
+  ctx.save();ctx.globalAlpha*=ch;rr(1500,cy+42,160,50,25);ctx.fillStyle='#e8f0e4';ctx.fill();
+  T('已受理',1580,cy+76,{size:24,weight:500,color:'#3e6b3a',align:'center'});ctx.restore();
+  ctx.restore();
+  if(t<0.9)return;
+  // 排位
+  const cs=eo(seg(t,CS('S02',1)-0.1,CS('S02',1)+0.4));
+  const nT=eio(seg(t,CS('S02',2)+0.15,CS('S02',2)+2.3));
+  const n=QN*nT;
+  const gridAlpha=1-eo(seg(t,CS('S04',1)-0.35,CS('S04',1)+0.15));
+  if(cs>0){
+    ctx.save();ctx.globalAlpha=cs;
+    T('当前排位',270,330,{size:26,color:'#6b6a66'});
+    T(fmt(n),270,425,{size:96,weight:600,font:SANS});
+    ctx.restore();
+    if(gridAlpha>0) dotGrid(t,nT*0.9975,{alpha:cs*gridAlpha});
+  }
+  // 预计处理时间
+  const e0=CS('S03',0);
+  const ea=eo(seg(t,e0,e0+0.35));
+  const strike=eo(seg(t,CS('S04',0)+1.0,CS('S04',0)+1.5));
+  if(ea>0){
+    ctx.save();ctx.globalAlpha=ea;
+    const ey=790;
+    ctx.fillStyle='#e3e1db';ctx.fillRect(270,ey-58,1380,2);
+    T('预计处理时间',270,ey,{size:30,color:'#6b6a66'});
+    const val=typed('7 个工作日',t,e0+0.5,e0+1.6);
+    T(val,560,ey+2,{size:42,weight:600});
+    if(strike>0){
+      const w=tw('7 个工作日',42,600);
+      ctx.strokeStyle='#c4402f';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(556,ey-12);ctx.lineTo(556+w*strike+8,ey-12);ctx.stroke();
+      T('无法计算',560+w+50,ey+2,{size:42,weight:600,color:'#c4402f',alpha:eo(seg(t,CS('S04',0)+1.4,CS('S04',0)+1.8))});
+    }
+    ctx.restore();
+  }
+  // 日历：施工 / 休息 / 无名
+  const cal=eo(seg(t,CS('S04',1)-0.1,CS('S04',1)+0.4));
+  if(cal>0){
+    ctx.save();ctx.globalAlpha=cal;
+    const cw=150,gap=22;
+    for(let i=0;i<8;i++){
+      const x=270+i*(cw+gap), y=480, h=230;
+      let reveal;
+      if(i<6) reveal=eo(seg(t,CS('S04',1)+0.15+i*0.33,CS('S04',1)+0.55+i*0.33));
+      else if(i==6) reveal=eo(seg(t,CS('S04',1)+2.15,CS('S04',1)+2.55));
+      else reveal=eo(seg(t,CS('S04',2)-0.05,CS('S04',2)+0.35));
+      ctx.save();ctx.globalAlpha*=0.25+0.75*reveal;
+      rr(x,y,cw,h,12);
+      if(i<6){ctx.fillStyle='#f6ebe2';ctx.fill();
+        ctx.save();ctx.clip();ctx.strokeStyle='rgba(217,119,87,.45)';ctx.lineWidth=2;
+        for(let k=-h;k<cw+h;k+=14){ctx.beginPath();ctx.moveTo(x+k,y+h);ctx.lineTo(x+k+h,y);ctx.stroke()}
+        ctx.restore();}
+      else if(i==6){ctx.fillStyle='#e7e4dc';ctx.fill()}
+      else {ctx.fillStyle='#fff';ctx.fill();ctx.setLineDash([8,8]);ctx.strokeStyle='#9a978f';ctx.lineWidth=2;rr(x,y,cw,h,12);ctx.stroke();ctx.setLineDash([])}
+      T('第 '+(i+1)+' 天',x+cw/2,y+46,{size:26,weight:500,color:'#3a3935',align:'center'});
+      if(i<6) T('施工',x+cw/2,y+142,{size:40,weight:600,color:'#b5573a',align:'center'});
+      if(i==6){T('休息',x+cw/2,y+142,{size:40,weight:600,color:'#6b6a66',align:'center'});
+        ctx.fillStyle='#6b6a66';ctx.beginPath();ctx.arc(x+cw/2,y+190,12,0.6*Math.PI,1.6*Math.PI);ctx.arc(x+cw/2+7,y+190,10,1.6*Math.PI,0.6*Math.PI,true);ctx.fill();}
+      if(i==7){ if(Math.floor(t*1.8)%2==0){ctx.fillStyle='#1d1d1b';ctx.fillRect(x+cw/2-1,y+104,3,52)}
+        T('（未命名）',x+cw/2,y+196,{size:22,color:'#9a978f',align:'center'}); }
+      ctx.restore();
+    }
+    // 工作日计数
+    const wd=eo(seg(t,CS('S04',0)+0.7,CS('S04',0)+1.2));
+    ctx.restore();
+  }
+  if(t>CS('S04',0)+0.9){
+    const a=eo(seg(t,CS('S04',0)+0.9,CS('S04',0)+1.4));
+    ctx.save();ctx.globalAlpha=a;
+    T('工作日',1260,330,{size:26,color:'#6b6a66'});
+    T('0 / 7',1260,425,{size:96,weight:600,color:'#c4402f'});
+    ctx.restore();
+  }
+}
+
+// ======================= 场景 B：后台（暗底）=======================
+const cats=['祈祷','祈祷','祈祷','祈祷','申诉','哭声','祈祷','诗','忏悔','求雨','祈祷','遗嘱','祈祷','哭声','祈祷'];
+function sceneB(t){
+  const tt=t-T_AB;
+  ctx.fillStyle='#0f1012';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#16171b';ctx.fillRect(0,0,W,76);ctx.fillStyle='#26282e';ctx.fillRect(0,76,W,2);
+  T('ANTHROP\\C',60,50,{size:30,weight:600,color:'#e9e6df',ls:2});
+  T('ops-console / appeals / queue',420,48,{size:22,color:'#7f8088',font:MONO});
+  T('值班 · 自动化',W-250,48,{size:22,color:'#7f8088'});
+  ctx.fillStyle='#16171b';ctx.fillRect(0,78,280,H-78);
+  ['工单','申诉队列','合规','封禁','配额','审计'].forEach((s,i)=>{
+    if(i==1){ctx.fillStyle='#22242a';ctx.fillRect(0,130+i*64,280,56);ctx.fillStyle='#d97757';ctx.fillRect(0,130+i*64,4,56)}
+    T(s,40,166+i*64,{size:26,color:i==1?'#e9e6df':'#7f8088'});
+  });
+  // 列表（持续上滚，队列加速增长）
+  const g0=CS('S05',0);
+  const speed=lerp(70,190,eo(seg(t,g0,g0+2)));
+  const off=(tt*speed)%64, base=Math.floor(tt*speed/64);
+  ctx.save();ctx.beginPath();ctx.rect(320,150,860,740);ctx.clip();
+  const mergeT=CS('S05',1), mergeEnd=mergeT+1.4;
+  for(let i=0;i<20;i++){
+    const idx=base+i, rnd=mulberry(idx*7919+13);
+    const cat=cats[(rnd()*cats.length)|0];
+    const y=190+i*64-off;
+    ctx.fillStyle=i%2?'#131417':'#15161a';ctx.fillRect(320,y-34,860,60);
+    T('#'+(100000000+((rnd()*9e7)|0)),345,y+4,{size:22,color:'#6b6d75',font:MONO});
+    T(cat,560,y+6,{size:26,color:'#c8c5bd'});
+    let st='待处理',sc='#7f8088';
+    if(cat=='祈祷'&&t>mergeT+0.6){st='重复 · 已合并';sc='#d9a441'}
+    T(st,880,y+6,{size:24,color:sc});
+  }
+  ctx.restore();
+  ctx.fillStyle='#0f1012';ctx.fillRect(280,890,W-280,H-890);
+  // 队列长度
+  const ql=QN+Math.floor(Math.max(0,tt)*212);
+  T('队列长度',340,125,{size:22,color:'#7f8088'});
+  T(fmt(ql),470,127,{size:34,weight:600,color:'#e9e6df',font:MONO});
+  T('▲ +212 / 秒',860,127,{size:24,color:'#d9a441',font:MONO});
+  // 右侧：当前工单详情
+  const dx=1230,dy=130,dw=620,dh=640;
+  ctx.fillStyle='#16171b';rr(dx,dy,dw,dh,16);ctx.fill();ctx.strokeStyle='#26282e';ctx.lineWidth=2;ctx.stroke();
+  const stage = t<CS('S05',1)?0 : t<CS('S05',2)?1 : t<CS('S05',3)?2 : 3;
+  const labels=['等待分类','祈祷','哭声.wav','诗_三千年.txt'];
+  T('当前工单',dx+36,dy+56,{size:24,color:'#7f8088'});
+  T(labels[stage],dx+36,dy+112,{size:42,weight:600,color:'#e9e6df'});
+  const ls=[CS('S05',0),CS('S05',1),CS('S05',2),CS('S05',3)][stage];
+  const lt=t-ls;
+  ctx.save();ctx.beginPath();ctx.rect(dx,dy+140,dw,dh-140);ctx.clip();
+  if(stage==0){
+    for(let i=0;i<5;i++){ const a=eo(seg(lt,0.2+i*0.25,0.6+i*0.25));
+      ctx.globalAlpha=a;ctx.fillStyle='#1d1f24';rr(dx+36,dy+190+i*74,dw-72,56,10);ctx.fill();
+      T('待分类 …',dx+60,dy+226+i*74,{size:24,color:'#7f8088'}); }
+  }
+  if(stage==1){
+    // 7 张相同的祈祷卡，错位叠放，随后收拢成一张，计数增长
+    const mp=eio(seg(lt,0.9,2.0));
+    for(let i=6;i>=0;i--){
+      const y=dy+200+i*44*(1-mp), x=dx+36+i*10*(1-mp);
+      ctx.fillStyle=i==0?'#262830':'#1f2126';rr(x,y,dw-72-i*10*(1-mp)*2,110,12);ctx.fill();
+      ctx.strokeStyle='#33363e';ctx.lineWidth=2;ctx.stroke();
+      T('祈祷 · 请保佑',x+26,y+48,{size:26,color:'#c8c5bd'});
+      T('来自 工作区 #'+(1000+i*37),x+26,y+84,{size:20,color:'#6b6d75',font:MONO});
+    }
+    const cnt=Math.floor(3100000000*eo(seg(lt,1.5,3.0)));
+    if(lt>1.5){ctx.globalAlpha=eo(seg(lt,1.5,1.9));
+      T('× '+fmt(cnt),dx+36,dy+420,{size:48,weight:600,color:'#d9a441',font:MONO});
+      rr(dx+36,dy+450,260,52,26);ctx.fillStyle='#3a2f14';ctx.fill();
+      T('重复 · 已合并',dx+166,dy+485,{size:24,color:'#d9a441',align:'center'});}
+  }
+  if(stage==2){
+    const a=eo(seg(lt,0.1,0.5));ctx.globalAlpha=a;
+    ctx.fillStyle='#1d1f24';rr(dx+36,dy+190,dw-72,200,12);ctx.fill();
+    // 波形：先有起伏，后被抹平
+    const flat=eio(seg(lt,1.5,2.4));
+    ctx.strokeStyle='#8aa0b8';ctx.lineWidth=3;ctx.beginPath();
+    for(let x=0;x<dw-120;x+=3){
+      const env=Math.sin(x/(dw-120)*Math.PI);
+      const v=(Math.sin(x*0.19+t*5)*0.6+Math.sin(x*0.071)*0.4)*env*64*(1-flat);
+      x?ctx.lineTo(dx+60+x,dy+290+v):ctx.moveTo(dx+60+x,dy+290+v);
+    }
+    ctx.stroke();
+    T('大小   ∞ MB',dx+60,dy+430,{size:24,color:'#7f8088'});
+    const b=eo(seg(lt,1.6,2.2));ctx.globalAlpha=b;
+    rr(dx+36,dy+470,dw-72,70,10);ctx.fillStyle='#3a1a17';ctx.fill();
+    T('✕  格式不受支持',dx+64,dy+516,{size:30,weight:600,color:'#e0675a'});
+  }
+  if(stage==3){
+    ctx.fillStyle='#1d1f24';rr(dx+36,dy+190,dw-72,380,12);ctx.fill();
+    const cutT=1.9, cut=eo(seg(lt,cutT,cutT+0.35));
+    const limitY=dy+190+210;
+    for(let i=0;i<14;i++){
+      const y=dy+222+i*24, w=(dw-140)*(0.55+0.45*Math.abs(Math.sin(i*2.3+1)));
+      const below=y>limitY;
+      let oy=0,rot=0,al=1;
+      if(below&&cut>0){oy=cut*cut*(260+i*14);rot=cut*0.5*(i%2?1:-1);al=1-cut}
+      ctx.save();ctx.globalAlpha=al;ctx.translate(dx+60+w/2,y+oy);ctx.rotate(rot);
+      ctx.fillStyle=below?'#d97757':'#5a5c64';
+      const grow=eo(seg(lt,0.1+i*0.07,0.4+i*0.07));
+      ctx.fillRect(-w/2*grow,-5,w*grow,10);ctx.restore();
+    }
+    // 限制线
+    ctx.strokeStyle='#e0675a';ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.beginPath();ctx.moveTo(dx+36,limitY);ctx.lineTo(dx+dw-36,limitY);ctx.stroke();ctx.setLineDash([]);
+    T('字数上限  5,000',dx+dw-48,limitY-12,{size:20,color:'#e0675a',align:'right',font:MONO});
+    const cntw=Math.floor(9800000*eo(seg(lt,0.2,1.7)));
+    T('字数  '+fmt(cntw),dx+36,dy+610,{size:30,weight:600,color:cntw>5000?'#e0675a':'#c8c5bd',font:MONO});
+    if(lt>cutT){ctx.globalAlpha=eo(seg(lt,cutT+0.1,cutT+0.5));T('已截断',dx+dw-36,dy+610,{size:30,weight:600,color:'#e0675a',align:'right'})}
+  }
+  ctx.restore();
+}
+
+// ======================= 场景 C：自动刷新 / 排位 =======================
+function sceneC(t){
+  lightPage(t);
+  shadowCard(210,150,1500,720,18);
+  T('我的申诉',270,230,{size:40,weight:600});
+  T('主题   申诉 · Solar-System-Workspace-01',270,278,{size:24,color:'#6b6a66'});
+  // 数值：48.x 前进一位；52.x 回滚
+  const goT=CS('S07',0)+1.15, backT=CS('S07',1)+1.55;
+  let n=QN;
+  const glitch=(t>backT&&t<backT+0.25)&&(Math.floor(t*30)%2==0);
+  if(t>=goT&&t<backT) n=QN-1;
+  if(glitch) n=QN-1+((Math.random()*0)|0);
+  const refT=CS('S06',0);
+  // 自动刷新环：每 1.6 秒一圈
+  const per=1.6, ph=(((t-refT)%per)+per)%per/per;
+  const ringX=1560,ringY=368;
+  ctx.strokeStyle='#e3e1db';ctx.lineWidth=7;ctx.beginPath();ctx.arc(ringX,ringY,34,0,7);ctx.stroke();
+  const active = t>=refT-0.2 && t<backT;
+  ctx.strokeStyle=active?'#d97757':'#bdb8aa';ctx.beginPath();ctx.arc(ringX,ringY,34,-Math.PI/2,-Math.PI/2+ph*Math.PI*2);ctx.stroke();
+  T('自动刷新',ringX,ringY+74,{size:20,color:'#6b6a66',align:'center'});
+  T('当前排位',270,330,{size:26,color:'#6b6a66'});
+  // 刷新瞬间数字闪一下
+  const flash=(t>=refT&&t<backT)?Math.max(0,1-ph*6):0;
+  ctx.save();ctx.globalAlpha=1-0.45*flash;
+  T(fmt(n),270,425,{size:96,weight:600,color:(t>=goT&&t<backT)?'#3e6b3a':'#1d1d1b'});
+  ctx.restore();
+  // 较上次
+  const dtxt = (t>=goT&&t<backT)?'较上次  ▲ 前进 1 位':'较上次  ± 0';
+  T(dtxt,1000,425,{size:30,color:(t>=goT&&t<backT)?'#3e6b3a':'#6b6a66',weight:500});
+  // 稳定标记
+  const sA=eo(seg(t,CS('S06',2)+1.1,CS('S06',2)+1.5));
+  if(sA>0&&t<backT+1){
+    ctx.save();ctx.globalAlpha=sA;rr(1000,448,150,48,24);ctx.fillStyle='#e8f0e4';ctx.fill();
+    T('✓ 稳定',1075,481,{size:24,weight:600,color:'#3e6b3a',align:'center'});ctx.restore();
+  }
+  // 点阵
+  const wave = (t>=goT&&t<backT)?clamp((t-goT)/0.8)*clamp((backT-t)/0.6+0.2,0,1):0;
+  dotGrid(t,0.9975,{wave:wave,waveT:t-goT});
+  // 历史曲线：一条水平线
+  const hy=800;
+  ctx.fillStyle='#e3e1db';ctx.fillRect(270,hy-40,1380,2);
+  T('排位历史',270,hy,{size:24,color:'#6b6a66'});
+  const sp=clamp((t-refT)/ (backT-refT+1));
+  ctx.strokeStyle='#9a978f';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(450,hy-8);
+  let x=450+sp*1200;
+  // 一位的跳变画成尖峰
+  if(t>=goT){const px=450+ (clamp((goT-refT)/(backT-refT+1)))*1200; ctx.lineTo(px,hy-8);ctx.lineTo(px+6,hy-30);ctx.lineTo(px+14,hy-8)}
+  ctx.lineTo(Math.max(x,450),hy-8);ctx.stroke();
+  // 错误横幅
+  const bA=eo(seg(t,backT-0.1,backT+0.35));
+  if(bA>0){
+    ctx.save();ctx.translate(0,(1-bA)*-80);
+    rr(210,108,1500,76,0);ctx.fillStyle='#c4402f';ctx.fill();
+    T('显示错误  ·  已修复',960,158,{size:32,weight:600,color:'#fff',align:'center'});
+    ctx.restore();
+  }
+}
+
+// ======================= 场景 D：邮件 =======================
+function sceneD(t){
+  lightPage(t);
+  const d0=T_CD;
+  // 新邮件提示
+  const toast=eo(seg(t,CS('S08',0)+0.8,CS('S08',0)+1.2))*(1-eo(seg(t,CS('S08',1)+0.4,CS('S08',1)+0.8)));
+  if(toast>0){ctx.save();ctx.globalAlpha=toast;shadowCard(1380,110,430,90,14);
+    T('新邮件 · 客服中心',1410,163,{size:26,weight:500});ctx.restore()}
+  const a=eo(seg(t,CS('S08',0)+1.0,CS('S08',0)+1.7));
+  const cardY=130+(1-a)*60;
+  ctx.save();ctx.globalAlpha=a;
+  shadowCard(360,cardY,1200,500,18);
+  T('客服中心',420,cardY+70,{size:30,weight:600});
+  T('<no-reply@support>',590,cardY+70,{size:24,color:'#6b6a66'});
+  ctx.fillStyle='#e3e1db';ctx.fillRect(420,cardY+96,1080,2);
+  T('主题   关于您的申诉',420,cardY+148,{size:28,weight:500,color:'#3a3935'});
+  const b1=typed('感谢您的耐心，我们非常重视您的反馈。',t,CS('S08',1)+0.05,CE('S08',1)-0.2);
+  T(b1,420,cardY+240,{size:36,color:'#1d1d1b'});
+  const b2=typed('本邮件由系统自动发送，请勿回复。',t,CS('S08',2)+0.05,CE('S08',2)-0.3);
+  T(b2,420,cardY+440,{size:24,color:'#9a978f'});
+  ctx.restore();
+  // 回复框
+  const r0=CS('S09',0), ra=eo(seg(t,r0-0.1,r0+0.35));
+  if(ra>0){
+    const ry=cardY+500+22-(ra*0);
+    ctx.save();ctx.globalAlpha=ra;
+    shadowCard(360,640,1200,170,18);
+    T('回复',420,692,{size:22,color:'#6b6a66'});
+    const rt=typed('请问，我们的申诉现在到哪一步了？',t,r0+0.1,r0+1.2);
+    T(rt,420,752,{size:34});
+    if(t<r0+1.3&&Math.floor(t*2)%2==0){ctx.fillStyle='#1d1d1b';ctx.fillRect(420+tw(rt,34)+4,722,3,40)}
+    // 发送按钮
+    const press=t>r0+1.9&&t<r0+2.15;
+    rr(1400,708,120,56,12);ctx.fillStyle=press?'#b5573a':'#d97757';ctx.fill();
+    T('发送',1460,745,{size:26,weight:600,color:'#fff',align:'center'});
+    ctx.restore();
+  }
+  // 自动回复（冷结尾）
+  const ar=r0+2.7, aa=eo(seg(t,ar,ar+0.5));
+  if(aa>0){
+    ctx.save();ctx.globalAlpha=aa;
+    shadowCard(360,836,1200,150,18);
+    T('自动回复',420,886,{size:22,color:'#6b6a66'});
+    T('您的回复已收到，已加入队列。当前排位：第 '+fmt(QN+1)+' 位。',420,946,{size:34,weight:500});
+    ctx.restore();
+  }
+  // 发送后原回复框退为灰
+  if(t>r0+2.15){ctx.save();ctx.globalAlpha=0.35*aa;ctx.fillStyle='#f4f3ef';rr(360,640,1200,170,18);ctx.fill();ctx.restore()}
+}
+
+function draw(t){
+  ctx.globalAlpha=1;
+  if(t<T_AB) sceneA(t);
+  else if(t<T_BC) sceneB(t);
+  else if(t<T_CD) sceneC(t);
+  else sceneD(t);
+}
+window.ready=document.fonts.ready.then(async()=>{
+  await document.fonts.load("600 40px NSC","申诉队列");await document.fonts.load("400 40px NSC","申诉");
+  await document.fonts.load("600 40px ASans","0123456789ANTHROPIC");
+  return true;});
+window.grab=(i)=>{draw(i/30);return cv.toDataURL('image/jpeg',0.95).slice(23)};
+window.DUR=TL.duration;
+</script></body></html>
