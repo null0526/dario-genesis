@@ -80,7 +80,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Light,Inter,46,&H00ECF2F4,&H00ECF2F4,&H70000000,&H90000000,0,0,0,0,100,100,0,0,1,2.2,1.2,2,120,120,72,1
-Style: Ink,Inter,46,&H001C2226,&H001C2226,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,2,120,120,72,1
+Style: Ink,Inter,46,&H001C2226,&H001C2226,&H00D9E1E4,&H00000000,0,0,0,0,100,100,0,0,1,1.6,0,2,120,120,72,1
 Style: Sign,Inter,28,&H00F2F2F2,&H00F2F2F2,&H60000000,&H00000000,0,0,0,0,100,100,0,0,3,8,0,8,90,90,16,1
 Style: Box,Inter,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 Style: CredLabel,Source Serif 4 Light,34,&H00858886,&H00858886,&H00000000,&H00000000,0,0,0,0,100,100,3,0,1,0,0,5,0,0,0,1
@@ -97,7 +97,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for k, q in enumerate(qs):
         nxt = qs[k + 1]['start'] if k + 1 < len(qs) else q['end'] + 0.8
         end = max(q['end'], min(nxt - 0.04, q['end'] + 0.3))
-        lines.append(f"Dialogue: 0,{ts(q['start'] - shift)},{ts(end - shift)},{q['style']},,0,0,0,,{{\\fad(80,80)}}{wrap(q['en'])}\n")
+        halo = ''
+        lines.append(f"Dialogue: 0,{ts(q['start'] - shift)},{ts(end - shift)},{q['style']},,0,0,0,,{{\\fad(80,80){halo}}}{wrap(q['en'])}\n")
     if signs:
         for t0, t1, text in signs['notes']:
             if t1 > shift and t0 < t_end:
