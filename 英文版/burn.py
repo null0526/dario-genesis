@@ -5,6 +5,7 @@
     python burn.py 成片.mp4 out.mp4 --audio mix_en.wav  # 同时换成英文配音混音
     python burn.py 成片.mp4 check --stills              # 不出片，只在每条字幕中点抽一帧，拼成 check/sheet-*.jpg 核对
     加 --start 秒 --dur 秒 只处理一段（试看）
+    无字幕版：python burn.py nosub.mp4 out.mp4 --offset 3.0426 --no-mask   （片头多 3.0426 秒，不用抹字幕）
 
 中文字幕的位置取自镜头源码：46px，水平居中，基线 y=998（1080-82），亮色带阴影或纸面墨色。
 每条英文字幕抹掉的范围 = 它覆盖的那几条中文分块里最宽的一条 + 余量；时间 = 这些分块的起止（各放宽 0.06 秒）。
@@ -33,15 +34,16 @@ def zh_width(text):
     return wide * 46 + (len(text) - wide) * 26
 
 
-def cues():
+def cues(offset=0.0):
     caps = {n: load_chapter(n)['captions'] for n in OFF}
     out = []
     for item in json.load(open(os.path.join(HERE, 'translation.json'), encoding='utf-8')):
         first, _, last = item['c'].partition('-')
         ch, a = map(int, first.split('.')); b = int((last or first).split('.')[1])
         span = caps[ch][a:b + 1]; shown = [c for c in span if c.get('kind') != 'screen' and c['text'].strip('”“ ')]
-        out.append({'c': item['c'], 'en': item['en'], 'say': item.get('say', item['en']), 'start': span[0]['start'] + OFF[ch], 'end': span[-1]['end'] + OFF[ch],
-                    'mask': (shown[0]['start'] + OFF[ch] - PAD, shown[-1]['end'] + OFF[ch] + PAD) if shown else None,
+        o = OFF[ch] + offset
+        out.append({'c': item['c'], 'en': item['en'], 'say': item.get('say', item['en']), 'start': span[0]['start'] + o, 'end': span[-1]['end'] + o,
+                    'mask': (shown[0]['start'] + o - PAD, shown[-1]['end'] + o + PAD) if shown else None,
                     'mw': max((zh_width(c['text']) for c in shown), default=0)})
     out.sort(key=lambda q: q['start'])
     return out
@@ -95,8 +97,10 @@ def main():
     ap.add_argument('video'); ap.add_argument('out')
     ap.add_argument('--audio'); ap.add_argument('--stills', action='store_true')
     ap.add_argument('--start', type=float, default=0.0); ap.add_argument('--dur', type=float)
+    ap.add_argument('--offset', type=float, default=0.0, help='视频比原成片时间轴晚多少秒')
+    ap.add_argument('--no-mask', action='store_true', help='视频本来没有中文字幕，不抹')
     a = ap.parse_args()
-    qs = cues()
+    qs = cues(a.offset)
     end_t = a.start + a.dur if a.dur else 1e9
     qs_win = [q for q in qs if q['end'] > a.start and q['start'] < end_t]
     for q in qs_win:
@@ -124,7 +128,7 @@ def main():
     ass = os.path.join(HERE, 'en.ass'); write_ass(qs_win, ass, a.start)
     delogo, ink = [], {}
     for q in qs_win:
-        if not q['mask']: continue
+        if not q['mask'] or a.no_mask: continue
         s0, s1 = q['mask'][0] - a.start, q['mask'][1] - a.start
         w = q['mw'] + 80; x = max(1, 960 - w // 2)
         delogo.append(f"delogo=x={x}:y={BAND_Y}:w={min(w, W - 2 - x)}:h={BAND_H}:enable='between(t,{s0:.3f},{s1:.3f})'")

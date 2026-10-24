@@ -3,8 +3,9 @@
 translation.json 每条 {"c": "章.起-章.止", "en": 字幕, "say": 可选的 TTS 读法}，c 指 数据/chN.js 里 captions 的下标范围，
 时间取范围内第一条的 start 到最后一条的 end，再加该章在全片里的起点（方法手册第三层）。
 语速按"这条字幕时长 + 到下一条的空隙（最多 0.8 秒）"算每秒词数，超过 3.0 的列出来，配音时要优先改短。
-用法：python make_subs.py"""
-import json, os, re
+用法：python make_subs.py                                  # 原成片时间（r7，700.907 秒）
+      python make_subs.py --offset 3.0426 --suffix nosub     # 无字幕版（片头多 3.0426 秒静音）-> en-nosub.srt"""
+import argparse, json, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, '..', '数据')
@@ -40,6 +41,8 @@ def words(text):
 
 
 def main():
+    ap = argparse.ArgumentParser(); ap.add_argument('--offset', type=float, default=0.0); ap.add_argument('--suffix', default='')
+    args = ap.parse_args(); sfx = f'-{args.suffix}' if args.suffix else ''
     caps = {n: load_chapter(n)['captions'] for n in OFF}
     cues, seen = [], set()
     for item in json.load(open(os.path.join(HERE, 'translation.json'), encoding='utf-8')):
@@ -48,7 +51,7 @@ def main():
         for i in range(a, b + 1):
             assert (ch, i) not in seen, f'重复 {ch}.{i}'; seen.add((ch, i))
         c = caps[ch]
-        cues.append({'c': item['c'], 'start': c[a]['start'] + OFF[ch], 'end': c[b]['end'] + OFF[ch], 'en': item['en'],
+        cues.append({'c': item['c'], 'start': c[a]['start'] + OFF[ch] + args.offset, 'end': c[b]['end'] + OFF[ch] + args.offset, 'en': item['en'],
                      'say': item.get('say', item['en']), 'zh': ''.join(x['text'] for x in c[a:b + 1] if x.get('kind') != 'screen')})
     missing = [f'{n}.{i:02d}' for n in caps for i in range(len(caps[n])) if (n, i) not in seen]
     assert not missing, f'没覆盖到的字幕 {missing}'
@@ -65,8 +68,8 @@ def main():
         end = max(q['end'], min(nxt - 0.04, q['end'] + 0.3))   # 显示时间往后多留最多 0.3 秒，不压下一条
         srt_en.append(f"{k + 1}\n{ts(q['start'])} --> {ts(end)}\n" + '\n'.join(lines) + '\n')
         srt_zh.append(f"{k + 1}\n{ts(q['start'])} --> {ts(end)}\n{q['zh'].rstrip('，。；：')}\n")
-    open(os.path.join(HERE, 'en.srt'), 'w', encoding='utf-8', newline='\n').write('\n'.join(srt_en))
-    open(os.path.join(HERE, 'zh.srt'), 'w', encoding='utf-8', newline='\n').write('\n'.join(srt_zh))
+    open(os.path.join(HERE, f'en{sfx}.srt'), 'w', encoding='utf-8', newline='\n').write('\n'.join(srt_en))
+    open(os.path.join(HERE, f'zh{sfx}.srt'), 'w', encoding='utf-8', newline='\n').write('\n'.join(srt_zh))
 
     tot = sum(words(q['say']) for q in cues)
     print(f'{len(cues)} 条字幕，覆盖 {len(seen)} 条中文分块；英文 {tot} 词（按读法计）')

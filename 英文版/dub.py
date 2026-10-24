@@ -3,7 +3,8 @@
 用法：
     python dub.py lines            # 写 tts_lines.tsv（id、起点、可用秒数、要读的英文），按它逐条生成 tts/<id>.wav|mp3
     python dub.py voice            # tts/ -> voice_en.wav，打印放不下、被推迟的句子
-    python dub.py mix 成片.mp4      # voice_en.wav + ../声音/full-music.wav + 成片片尾原声 -> mix_en.wav
+    python dub.py mix 成片.mp4 [片头偏移秒]   # voice_en.wav + ../声音/full-music.wav + 成片片尾原声 -> mix_en.wav
+                                          # 无字幕版：python dub.py mix nosub.mp4 3.0426
 
 摆放：每句放在对应中文字幕的起点；放不下（会压到下一句）时先最多提前 0.25 秒起读，再最多加速到 1.12 倍，
 仍放不下就顺延下一句并报告——这种句子应该回 translation.json 改短。
@@ -84,12 +85,12 @@ def voice():
     print('放不下、顺延了下一句（要改短）：', late or '无')
 
 
-def mix(film):
+def mix(film, offset=0.0):
     v = wavfile.read(os.path.join(HERE, 'voice_en.wav'))[1].astype(np.float64)
     m = wavfile.read(os.path.join(HERE, '..', '声音', 'full-music.wav'))[1].astype(np.float64) * 10 ** (MUSIC_DB / 20)
     orig = decode(film, 2).astype(np.float64); n = len(orig)
-    y = np.zeros((n, 2)); c = int(CREDITS * SR)
-    y[:min(c, len(m))] += m[:min(c, len(m))]; y[:min(c, len(v))] += v[:min(c, len(v)), None]
+    y = np.zeros((n, 2)); i0 = int(round(offset * SR)); c = int((CREDITS + offset) * SR); k = c - i0   # 配乐、旁白整体后移 offset
+    y[i0:i0 + min(k, len(m))] += m[:min(k, len(m))]; y[i0:i0 + min(k, len(v))] += v[:min(k, len(v)), None]
     fade = int(0.02 * SR); ramp = np.linspace(0, 1, fade)[:, None]
     y[c:c + fade] = y[c:c + fade] * (1 - ramp) + orig[c:c + fade] * ramp; y[c + fade:] = orig[c + fade:]
     g = MASTER_LUFS - pyloudnorm.Meter(SR).integrated_loudness(y); y *= 10 ** (g / 20)
@@ -106,4 +107,4 @@ def mix(film):
 
 
 if __name__ == '__main__':
-    {'lines': lines, 'voice': voice, 'mix': lambda: mix(sys.argv[2])}[sys.argv[1]]()
+    {'lines': lines, 'voice': voice, 'mix': lambda: mix(sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 0.0)}[sys.argv[1]]()
