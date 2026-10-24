@@ -10,3 +10,5 @@ __pycache__/
 英文版/voice_en.json
 英文版/samples/
 英文版/kokoro/
+英文版/ocr_raw.json
+英文版/ocr_items.json

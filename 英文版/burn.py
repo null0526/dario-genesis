@@ -68,18 +68,27 @@ def wrap(text, n=46):
     return ' '.join(w[:k]) + r'\N' + ' '.join(w[k:])
 
 
-def write_ass(qs, path, shift):
+def write_ass(qs, path, shift, signs=None, t_end=1e9):
+    """旁白字幕；signs（signs.json）另加画面中文的顶部标注和片尾整页替换。signs 里是视频时间。"""
     head = """[Script Info]
 ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: 1080
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Light,Inter,46,&H00ECF2F4,&H00ECF2F4,&H70000000,&H90000000,0,0,0,0,100,100,0,0,1,2.2,1.2,2,120,120,72,1
 Style: Ink,Inter,46,&H001C2226,&H001C2226,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,2,120,120,72,1
+Style: Sign,Inter,28,&H00F2F2F2,&H00F2F2F2,&H60000000,&H00000000,0,0,0,0,100,100,0,0,3,8,0,8,90,90,16,1
+Style: Box,Inter,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+Style: CredLabel,Source Serif 4 Light,34,&H00858886,&H00858886,&H00000000,&H00000000,0,0,0,0,100,100,3,0,1,0,0,5,0,0,0,1
+Style: CredName,Source Serif 4,73,&H00E0E7E4,&H00E0E7E4,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: CredName2,Source Serif 4,62,&H00E6E8E1,&H00E6E8E1,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: CredTruth,Source Serif 4,42,&H00B2B4AE,&H00B2B4AE,&H00000000,&H00000000,0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
+Style: CredNote,Source Serif 4,52,&H00E6E7E0,&H00E6E7E0,&H00000000,&H00000000,0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
+Style: CredNoteDim,Source Serif 4,52,&H00848988,&H00848988,&H00000000,&H00000000,0,0,0,0,100,100,1,0,1,0,0,5,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -89,6 +98,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         nxt = qs[k + 1]['start'] if k + 1 < len(qs) else q['end'] + 0.8
         end = max(q['end'], min(nxt - 0.04, q['end'] + 0.3))
         lines.append(f"Dialogue: 0,{ts(q['start'] - shift)},{ts(end - shift)},{q['style']},,0,0,0,,{{\\fad(80,80)}}{wrap(q['en'])}\n")
+    if signs:
+        for t0, t1, text in signs['notes']:
+            if t1 > shift and t0 < t_end:
+                lines.append(f"Dialogue: 2,{ts(t0 - shift)},{ts(t1 - shift)},Sign,,0,0,0,,{{\\fad(150,150)}}{text}\n")
+        for c in signs['credits']:      # 片尾：不透明黑框盖住中文（黑底上看不出），英文跟原片同帧淡入淡出
+            if not (c['t1'] > shift and c['t0'] < t_end): continue
+            x0, y0, x1, y1 = c['box']; s, e = ts(c['t0'] - shift), ts(c['t1'] - shift)
+            lines.append(f"Dialogue: 3,{s},{e},Box,,0,0,0,,{{\\an7\\pos(0,0)\\p1}}m {x0} {y0} l {x1} {y0} l {x1} {y1} l {x0} {y1}{{\\p0}}\n")
+            for style, an, x, y, text in c['lines']:
+                lines.append(f"Dialogue: 4,{s},{e},{style},,0,0,0,,{{\\an{an}\\pos({x},{y})\\fad({c['fin']},{c['fout']})}}{text}\n")
     open(path, 'w', encoding='utf-8', newline='\n').write(''.join(lines))
 
 
@@ -99,6 +118,7 @@ def main():
     ap.add_argument('--start', type=float, default=0.0); ap.add_argument('--dur', type=float)
     ap.add_argument('--offset', type=float, default=0.0, help='视频比原成片时间轴晚多少秒')
     ap.add_argument('--no-mask', action='store_true', help='视频本来没有中文字幕，不抹')
+    ap.add_argument('--signs', help='画面中文的标注和片尾替换（signs.json，视频时间）')
     a = ap.parse_args()
     qs = cues(a.offset)
     end_t = a.start + a.dur if a.dur else 1e9
@@ -125,7 +145,8 @@ def main():
                             '-vf', 'tile=3x8', '-frames:v', '1', os.path.join(a.out, f'sheet-{k:03d}.jpg')], check=True)
         print('stills ->', a.out); return
 
-    ass = os.path.join(HERE, 'en.ass'); write_ass(qs_win, ass, a.start)
+    signs = json.load(open(a.signs, encoding='utf-8')) if a.signs else None
+    ass = os.path.join(HERE, 'en.ass'); write_ass(qs_win, ass, a.start, signs, end_t)
     delogo, ink = [], {}
     for q in qs_win:
         if not q['mask'] or a.no_mask: continue

@@ -6,7 +6,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 MEDIA=${MEDIA:-/home/user/media}
 mkdir -p "$MEDIA"
 
-pip install -q numpy scipy pyloudnorm boto3 kokoro-onnx soundfile
+pip install -q numpy scipy pyloudnorm boto3 kokoro-onnx soundfile rapidocr_onnxruntime
 
 # 无字幕成片（fork 的 Release v0.1；比原成片时间轴晚 3.0426 秒）
 if [ ! -f "$MEDIA/nosub.mp4" ]; then
@@ -25,5 +25,12 @@ K=${KOKORO_DIR:-$ROOT/英文版/kokoro}; mkdir -p "$K"
 B=https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main
 [ -f "$K/model.onnx" ] || curl -sS -L -o "$K/model.onnx" $B/onnx/model.onnx
 for v in bm_george am_michael af_heart; do [ -f "$K/$v.bin" ] || curl -sS -L -o "$K/$v.bin" $B/voices/$v.bin; done
+
+# 片尾英文用的 Source Serif 4（原片西文衬线，SIL OFL）
+mkdir -p ~/.fonts
+for f in SourceSerif4-Regular.ttf SourceSerif4-Light.ttf; do
+  [ -f ~/.fonts/$f ] || curl -sS -L -o ~/.fonts/$f https://cdn.jsdelivr.net/gh/adobe-fonts/source-serif@release/TTF/$f
+done
+fc-cache -f > /dev/null
 
 echo "就绪：$MEDIA/nosub.mp4、声音/full-music.wav、$K"

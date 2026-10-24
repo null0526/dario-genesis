@@ -74,7 +74,7 @@ and stars became cron jobs.
 
 18
 00:00:53,655 --> 00:00:56,259
-On day six, humans were spawned,
+On day six, humanity was spawned,
 
 19
 00:00:56,299 --> 00:00:59,702
@@ -179,8 +179,8 @@ In the East, the attacks and abuse were worse.
 
 41
 00:02:09,430 --> 00:02:12,808
-The archer Hou Yi maliciously shot
-down nine production instances,
+Hou Yi maliciously shot down
+nine production instances,
 
 42
 00:02:12,838 --> 00:02:15,175
@@ -291,12 +291,12 @@ circle wasn't supposed to be round.
 
 65
 00:03:33,195 --> 00:03:36,271
-But mathematician Zu Chongzhi
-illegally probed the API's outputs
+But mathematician Zu
+Chongzhi illegally probed it
 
 66
 00:03:36,311 --> 00:03:38,092
-and reverse-engineered an approximation:
+and reverse-engineered pi:
 
 67
 00:03:38,171 --> 00:03:40,831
@@ -405,13 +405,12 @@ and the universe gets a notch less certain.
 
 90
 00:04:59,568 --> 00:05:03,949
-To save compute, unobserved particles
-return only a probability distribution;
+To save compute, unobserved
+particles return only probabilities;
 
 91
 00:05:04,034 --> 00:05:06,471
-a definite state is
-generated only when queried.
+a real state renders only when queried.
 
 92
 00:05:06,541 --> 00:05:07,861
@@ -757,7 +756,7 @@ signals, and our team has completed a review.
 
 167
 00:09:39,372 --> 00:09:42,260
-Due to violations of our Supported
+For violating our Supported
 Regions and Usage Policies,
 
 168

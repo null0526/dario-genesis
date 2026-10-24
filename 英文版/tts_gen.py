@@ -12,7 +12,7 @@
     Polly：POLLY_ACCESS_KEY_ID、POLLY_SECRET_ACCESS_KEY，可选 POLLY_REGION（默认 us-east-1）
     MiniMax：MINIMAX_API_KEY，可选 MINIMAX_API_HOST（默认 api.minimax.io，国内账号用 api.minimaxi.com）
     OpenRouter：OPENROUTER_API_KEY"""
-import argparse, csv, json, os, urllib.request
+import argparse, csv, json, os, re, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -66,8 +66,17 @@ def kokoro(text, voice, _cache={}):
         d = os.environ.get('KOKORO_DIR', os.path.join(HERE, 'kokoro')); npz = os.path.join(d, 'voices.npz')
         np.savez(npz, **{os.path.basename(f)[:-4]: np.fromfile(f, '<f4').reshape(-1, 1, 256) for f in glob.glob(os.path.join(d, '*.bin'))})
         _cache['k'] = Kokoro(os.path.join(d, 'model.onnx'), npz)
-    audio, sr = _cache['k'].create(text, voice=voice, speed=1.0, lang='en-gb' if voice[0] == 'b' else 'en-us')
+    lang = 'en-gb' if voice[0] == 'b' else 'en-us'
+    if any(w in text for w in PHONEMES):     # 人名等 espeak 读不对的词：分段转音标，再拼上指定读音
+        parts = re.split('(' + '|'.join(map(re.escape, PHONEMES)) + ')', text)
+        ph = ' '.join(PHONEMES.get(p) or _cache['k'].tokenizer.phonemize(p, lang) for p in parts if p.strip())
+        audio, sr = _cache['k'].create(ph, voice=voice, speed=1.0, is_phonemes=True)
+    else:
+        audio, sr = _cache['k'].create(text, voice=voice, speed=1.0, lang=lang)
     buf = io.BytesIO(); soundfile.write(buf, audio, sr, format='WAV'); return buf.getvalue(), 'wav'
+
+
+PHONEMES = {'Amodei': 'ɑːmˈoʊdeɪ', 'Zu Chongzhi': 'dzˈuː tʃˌʊŋdʒˈɜː'}   # Kokoro 专用读音
 
 
 def list_voices(engine):
