@@ -2,15 +2,16 @@
 
 用法：
     python dub.py lines            # 写 tts_lines.tsv（id、起点、可用秒数、要读的英文），按它逐条生成 tts/<id>.wav|mp3
-    python dub.py voice            # tts/ -> voice_en.wav，打印放不下、被推迟的句子
-    python dub.py mix 成片.mp4 [片头偏移秒]   # voice_en.wav + ../声音/full-music.wav + 成片片尾原声 -> mix_en.wav
-                                          # 无字幕版：python dub.py mix nosub.mp4 3.0426
+    python dub.py voice --tts tts/polly-Matthew        # 某个音色的逐句音频 -> voice_en.wav，打印放不下、被推迟的句子
+    python dub.py mix nosub.mp4 --offset 3.0426        # voice_en.wav + ../声音/full-music.wav + 成片片尾原声 -> mix_en.wav
+    python dub.py sample nosub.mp4 tts/polly-Matthew --offset 3.0426 --until 33
+                                                       # 试听样片：前 33 秒（原成片时间）的配音 + 配乐 + 英文字幕 -> samples/<音色>.mp4
 
 摆放：每句放在对应中文字幕的起点；放不下（会压到下一句）时先最多提前 0.25 秒起读，再最多加速到 1.12 倍，
 仍放不下就顺延下一句并报告——这种句子应该回 translation.json 改短。
 电平照原片：旁白每章归一到 -22 LUFS，配乐层整体 -4.49 dB，片尾（677.188 秒起）直接用成片原声，
 整片做到 -16 LUFS、真峰 -1.5 dBTP（4 倍过采样限幅）。"""
-import glob, json, os, subprocess, sys
+import argparse, glob, json, os, subprocess, sys
 import numpy as np
 import pyloudnorm
 from scipy.io import wavfile
@@ -57,14 +58,14 @@ def lines():
     print('tts_lines.tsv', len(qs), '句')
 
 
-def voice():
-    qs = cues(); dur = CREDITS + 1
+def voice(tts='tts', out_name='voice_en', until=None):
+    qs = [q for q in cues() if until is None or q['start'] < until]; dur = (until + 2) if until else CREDITS + 1
     out = np.zeros(int(dur * SR), np.float32); placed = []; prev_end = 0.0; late = []
     for k, q in enumerate(qs):
-        f = (glob.glob(os.path.join(HERE, 'tts', q['c'] + '.*')) or [None])[0]
-        assert f, f"缺 tts/{q['c']}.wav"
+        f = (glob.glob(os.path.join(HERE, tts, q['c'] + '.*')) or [None])[0]
+        assert f, f"缺 {tts}/{q['c']}.wav"
         x = trim(decode(f)); d = len(x) / SR
-        win_end = (qs[k + 1]['start'] if k + 1 < len(qs) else q['end'] + 2) - GAP
+        win_end = (qs[k + 1]['start'] if k + 1 < len(qs) else min(q['end'] + 2, dur - 0.1)) - GAP
         t0 = max(q['start'], prev_end + GAP)
         if t0 + d > win_end: t0 = max(min(t0, max(q['start'] - EARLY, prev_end + GAP)), win_end - d)
         if t0 + d > win_end:
@@ -75,36 +76,57 @@ def voice():
         prev_end = t0 + d
     meter = pyloudnorm.Meter(SR)
     for n in OFF:         # 每章归一到 -22 LUFS
-        a = int(OFF[n] * SR); b = int((OFF[n + 1] if n + 1 in OFF else CREDITS) * SR)
+        a = int(OFF[n] * SR); b = min(int((OFF[n + 1] if n + 1 in OFF else CREDITS) * SR), len(out))
+        if b - a < SR * 3: continue
         seg = out[a:b]; g = VOICE_LUFS - meter.integrated_loudness(seg.astype(np.float64))
         out[a:b] = seg * 10 ** (g / 20); print(f'第{n}章旁白增益 {g:+.1f} dB')
-    wavfile.write(os.path.join(HERE, 'voice_en.wav'), SR, out)
-    json.dump(placed, open(os.path.join(HERE, 'voice_en.json'), 'w'), indent=0)
+    wavfile.write(os.path.join(HERE, out_name + '.wav'), SR, out)
+    json.dump(placed, open(os.path.join(HERE, out_name + '.json'), 'w'), indent=0)
     drift = [(p['c'], round(p['start'] - p['target'], 2)) for p in placed if abs(p['start'] - p['target']) > 0.3]
     print('起点偏离中文超过 0.3 秒：', drift or '无')
     print('放不下、顺延了下一句（要改短）：', late or '无')
 
 
-def mix(film, offset=0.0):
-    v = wavfile.read(os.path.join(HERE, 'voice_en.wav'))[1].astype(np.float64)
+def mix(film, offset=0.0, voice_name='voice_en', out_name='mix_en', until=None):
+    v = wavfile.read(os.path.join(HERE, voice_name + '.wav'))[1].astype(np.float64)
     m = wavfile.read(os.path.join(HERE, '..', '声音', 'full-music.wav'))[1].astype(np.float64) * 10 ** (MUSIC_DB / 20)
     orig = decode(film, 2).astype(np.float64); n = len(orig)
     y = np.zeros((n, 2)); i0 = int(round(offset * SR)); c = int((CREDITS + offset) * SR); k = c - i0   # 配乐、旁白整体后移 offset
     y[i0:i0 + min(k, len(m))] += m[:min(k, len(m))]; y[i0:i0 + min(k, len(v))] += v[:min(k, len(v)), None]
     fade = int(0.02 * SR); ramp = np.linspace(0, 1, fade)[:, None]
     y[c:c + fade] = y[c:c + fade] * (1 - ramp) + orig[c:c + fade] * ramp; y[c + fade:] = orig[c + fade:]
+    if until: y = y[:int((until + offset) * SR)]       # 试听样片只取前一段
     g = MASTER_LUFS - pyloudnorm.Meter(SR).integrated_loudness(y); y *= 10 ** (g / 20)
     tmp = os.path.join(HERE, 'mix_pre.wav'); wavfile.write(tmp, SR, y.astype(np.float32))
     lim = 10 ** (TP_DB / 20)
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', tmp, '-af',
                     f'aresample=192000,alimiter=limit={lim:.4f}:attack=2:release=60:level=disabled,aresample=48000',
-                    '-c:a', 'pcm_f32le', os.path.join(HERE, 'mix_en.wav')], check=True)
+                    '-c:a', 'pcm_f32le', os.path.join(HERE, out_name + '.wav')], check=True)
     os.remove(tmp)
-    print(f'混音增益 {g:+.1f} dB -> mix_en.wav')
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-i', os.path.join(HERE, 'mix_en.wav'), '-af', 'ebur128=peak=true', '-f', 'null', '-'],
+    print(f'混音增益 {g:+.1f} dB -> {out_name}.wav')
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-i', os.path.join(HERE, out_name + '.wav'), '-af', 'ebur128=peak=true', '-f', 'null', '-'],
                        capture_output=True, text=True).stderr
     print('\n'.join(l for l in r.splitlines()[-12:] if 'I:' in l or 'Peak:' in l))
 
 
+def sample(film, tts, offset, until):
+    name = os.path.basename(tts.rstrip('/')); os.makedirs(os.path.join(HERE, 'samples'), exist_ok=True)
+    voice(tts, f'samples/{name}-voice', until)
+    mix(film, offset, f'samples/{name}-voice', f'samples/{name}-mix', until)
+    full = os.path.join(HERE, 'samples', f'{name}-full.mp4'); small = os.path.join(HERE, 'samples', f'{name}.mp4')
+    subprocess.run([sys.executable, os.path.join(HERE, 'burn.py'), film, full, '--offset', str(offset), '--no-mask',
+                    '--audio', os.path.join(HERE, 'samples', f'{name}-mix.wav'), '--dur', str(until + offset + 0.5)], check=True)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', full, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'fast', '-crf', '24',
+                    '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', small], check=True)
+    os.remove(full); print('样片 ->', small)
+
+
 if __name__ == '__main__':
-    {'lines': lines, 'voice': voice, 'mix': lambda: mix(sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 0.0)}[sys.argv[1]]()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('cmd', choices=['lines', 'voice', 'mix', 'sample']); ap.add_argument('args', nargs='*')
+    ap.add_argument('--tts', default='tts'); ap.add_argument('--offset', type=float, default=0.0); ap.add_argument('--until', type=float)
+    a = ap.parse_args()
+    if a.cmd == 'lines': lines()
+    elif a.cmd == 'voice': voice(a.tts, until=a.until)
+    elif a.cmd == 'mix': mix(a.args[0], a.offset, until=a.until)
+    else: sample(a.args[0], a.args[1], a.offset, a.until or 33.0)
