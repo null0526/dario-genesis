@@ -101,7 +101,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         halo = ''
         lines.append(f"Dialogue: 0,{ts(q['start'] - shift)},{ts(end - shift)},{q['style']},,0,0,0,,{{\\fad(80,80){halo}}}{wrap(q['en'])}\n")
     if signs:
-        for t0, t1, text in (signs['notes'] if notes else []):
+        for t0, t1, text in (signs.get('notes', []) if notes else []):
             if t1 > shift and t0 < t_end:
                 lines.append(f"Dialogue: 2,{ts(t0 - shift)},{ts(t1 - shift)},Sign,,0,0,0,,{{\\fad(150,150)}}{text}\n")
         for c in signs['credits']:      # 片尾：不透明黑框盖住中文（黑底上看不出），英文跟原片同帧淡入淡出

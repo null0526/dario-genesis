@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 新会话接手英文版：装依赖、下载无字幕成片、重建配乐层、下载 Kokoro 模型。约 5 分钟。
+# 英文版环境准备：装依赖、下载无字幕原片并校验、重建配乐层、下载 Kokoro 模型和字体。约 5 分钟。
 # 用法：bash 英文版/setup.sh   （在仓库根目录）
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -8,11 +8,12 @@ mkdir -p "$MEDIA"
 
 pip install -q numpy scipy pyloudnorm boto3 kokoro-onnx soundfile rapidocr_onnxruntime
 
-# 无字幕成片（fork 的 Release v0.1；比原成片时间轴晚 3.0426 秒）
-if [ ! -f "$MEDIA/nosub.mp4" ]; then
-  curl -sS -L -o "$MEDIA/nosub.mp4" https://github.com/usernameistony/dario-genesis/releases/download/v0.1/dario-genesis-nosub-1080p.mp4
-fi
-echo "1b0c215b83ff60854bb0ede13ffe9d3ab07f161124cd06c6bddfca478c2b6fcd  $MEDIA/nosub.mp4" | sha256sum -c -
+# 无字幕原片（默认取 usernameistony/dario-genesis 的 Release v0.1；它比原成片时间轴晚 3.0426 秒）
+# 换别的文件：设 NOSUB_URL；校验值对不上时设 NOSUB_SHA256（设为空则不校验）
+NOSUB_URL=${NOSUB_URL:-https://github.com/usernameistony/dario-genesis/releases/download/v0.1/dario-genesis-nosub-1080p.mp4}
+NOSUB_SHA256=${NOSUB_SHA256-1b0c215b83ff60854bb0ede13ffe9d3ab07f161124cd06c6bddfca478c2b6fcd}
+[ -f "$MEDIA/nosub.mp4" ] || curl -sS -L -o "$MEDIA/nosub.mp4" "$NOSUB_URL"
+[ -z "$NOSUB_SHA256" ] || echo "$NOSUB_SHA256  $MEDIA/nosub.mp4" | sha256sum -c -
 
 # 配乐层（不含旁白），与成片逐采样一致
 if [ ! -f "$ROOT/声音/full-music.wav" ]; then

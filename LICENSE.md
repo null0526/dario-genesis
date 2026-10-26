@@ -4,8 +4,8 @@
 
 | 内容 | 协议 |
 |---|---|
-| 成片视频、封面（在 Release 附件里），以及作为作品内容的旁白文稿：`文档/旁白文稿.md`、`数据/` | [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans)：可以转载、改编，须署名、非商业使用、改编作品用同样协议 |
-| 代码：`声音/`、`镜头/`、`最小示例/` 下的 `.py`、`.html`、`.js` | [MIT](LICENSES/MIT.txt) |
+| 成片视频、封面（在 Release 附件里），以及作为作品内容的旁白文稿：`文档/旁白文稿.md`、`数据/`；英文版中属于作品内容改编的译稿、字幕和画面文字：`英文版/` 下的 `translation.json`、`*.srt`、`tts_lines.tsv`、`signs.json`、`ocr_items.tsv` | [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans)：可以转载、改编，须署名、非商业使用、改编作品用同样协议 |
+| 代码：`声音/`、`镜头/`、`最小示例/`、`英文版/` 下的 `.py`、`.sh`、`.html`、`.js` | [MIT](LICENSES/MIT.txt) |
 | 其余文档：`文档/` 下除旁白文稿以外的 `.md`、各目录的说明文档 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.zh-hans)：可以自由使用，须署名 |
 
 协议全文见上面的链接（[CC BY-NC-SA 4.0 法律文本](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.zh-hans)、[CC BY 4.0 法律文本](https://creativecommons.org/licenses/by/4.0/legalcode.zh-hans)）。
