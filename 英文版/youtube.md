@@ -1,6 +1,6 @@
 # YouTube 上架文案
 
-对应成片：`dario-genesis-en.mp4`。以 fork Release v0.1 的无字幕版为底，加英文配音（Kokoro-82M `am_michael`），烧入英文字幕和画面中文的英文标注，片尾替换为英文。片名沿用片头标题卡上原片自带的英文名 **Dario Genesis**。
+对应成片：`dario-genesis-en-nosubs.mp4`。以 fork Release v0.1 的无字幕版为底，换成英文配音（Kokoro-82M `am_michael`），片尾替换为英文。画面不烧字幕，字幕作为独立字幕轨上传：`en-nosub.srt`（英文）、`zh-nosub.srt`（中文）。画面里的中文暂时未翻译（片尾除外）。片名沿用片头标题卡上原片自带的英文名 **Dario Genesis**。
 
 ## 标题（三选一）
 
@@ -32,13 +32,13 @@ Producer & Original Concept: a former Claude Max 5x user (Bilibili @你好与那
 Original Chinese narration: MiniMax Speech 2.8 HD
 
 ENGLISH VERSION
-Translation, English subtitles and on-screen text translation; English narration: Kokoro-82M (voice am_michael). Published with the permission of the original author.
+English translation and subtitles; English narration: Kokoro-82M (voice am_michael). Published with the permission of the original author.
 
 Original (Chinese): https://www.bilibili.com/video/BV1mEnb6LEnC/
 Source code and production notes: https://github.com/null0526/dario-genesis
 
 LICENSE
-"达里奥创世录 (Dario Genesis)" by Bilibili @你好与那啥, licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). Changes in this version: Chinese narration replaced by an English voice; English subtitles and English notes for on-screen Chinese text added; end credits translated into English. This English version is released under the same license.
+"达里奥创世录 (Dario Genesis)" by Bilibili @你好与那啥, licensed under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). Changes in this version: Chinese narration replaced by an English voice; English and Chinese subtitles provided as caption tracks; end credits translated into English. This English version is released under the same license.
 
 This is a work of fiction and satire. It is not affiliated with, endorsed by, or connected to Anthropic.
 ```
@@ -58,5 +58,5 @@ This is a work of fiction and satire. It is not affiliated with, endorsed by, or
 | 收益 | 不开通 | 协议是非商业（NC） |
 | 视频语言 | English | |
 | 自动配音（如果频道有这个选项） | 关闭 | 免得 YouTube 再生成一版对不上画面的配音 |
-| 字幕轨 | 可选：挂 `zh-nosub.srt` 作为中文字幕 | 英文已经烧进画面，再挂英文字幕轨的话，打开 CC 会出现两行重复 |
+| 字幕轨 | 上传 `en-nosub.srt`，语言选 English；上传 `zh-nosub.srt`，语言选 Chinese (Simplified) | 画面不烧字幕，观众在 CC 里选语言；以后可以再加其他语言的 SRT |
 | 置顶评论 | 原片链接和仓库链接 | 方便观众找原作 |

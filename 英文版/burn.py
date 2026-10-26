@@ -6,6 +6,7 @@
     python burn.py 成片.mp4 check --stills              # 不出片，只在每条字幕中点抽一帧，拼成 check/sheet-*.jpg 核对
     加 --start 秒 --dur 秒 只处理一段（试看）
     无字幕版：python burn.py nosub.mp4 out.mp4 --offset 3.0426 --no-mask   （片头多 3.0426 秒，不用抹字幕）
+    字幕另作字幕轨：python burn.py nosub.mp4 out.mp4 --offset 3.0426 --no-mask --no-subs --signs signs.json --credits-only --audio mix_en.wav --hevc
 
 中文字幕的位置取自镜头源码：46px，水平居中，基线 y=998（1080-82），亮色带阴影或纸面墨色。
 每条英文字幕抹掉的范围 = 它覆盖的那几条中文分块里最宽的一条 + 余量；时间 = 这些分块的起止（各放宽 0.06 秒）。
@@ -68,7 +69,7 @@ def wrap(text, n=46):
     return ' '.join(w[:k]) + r'\N' + ' '.join(w[k:])
 
 
-def write_ass(qs, path, shift, signs=None, t_end=1e9):
+def write_ass(qs, path, shift, signs=None, t_end=1e9, notes=True):
     """旁白字幕；signs（signs.json）另加画面中文的顶部标注和片尾整页替换。signs 里是视频时间。"""
     head = """[Script Info]
 ScriptType: v4.00+
@@ -100,7 +101,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         halo = ''
         lines.append(f"Dialogue: 0,{ts(q['start'] - shift)},{ts(end - shift)},{q['style']},,0,0,0,,{{\\fad(80,80){halo}}}{wrap(q['en'])}\n")
     if signs:
-        for t0, t1, text in signs['notes']:
+        for t0, t1, text in (signs['notes'] if notes else []):
             if t1 > shift and t0 < t_end:
                 lines.append(f"Dialogue: 2,{ts(t0 - shift)},{ts(t1 - shift)},Sign,,0,0,0,,{{\\fad(150,150)}}{text}\n")
         for c in signs['credits']:      # 片尾：不透明黑框盖住中文（黑底上看不出），英文跟原片同帧淡入淡出
@@ -120,10 +121,13 @@ def main():
     ap.add_argument('--offset', type=float, default=0.0, help='视频比原成片时间轴晚多少秒')
     ap.add_argument('--no-mask', action='store_true', help='视频本来没有中文字幕，不抹')
     ap.add_argument('--signs', help='画面中文的标注和片尾替换（signs.json，视频时间）')
+    ap.add_argument('--credits-only', action='store_true', help='signs 里只用片尾替换，不加顶部标注')
+    ap.add_argument('--no-subs', action='store_true', help='不烧旁白字幕（字幕另作 SRT 字幕轨上传）')
+    ap.add_argument('--hevc', action='store_true', help='直接编码成 H.265 4 Mbps（约 340 MiB），否则 H.264 CRF 18')
     a = ap.parse_args()
     qs = cues(a.offset)
     end_t = a.start + a.dur if a.dur else 1e9
-    qs_win = [q for q in qs if q['end'] > a.start and q['start'] < end_t]
+    qs_win = [] if a.no_subs else [q for q in qs if q['end'] > a.start and q['start'] < end_t]
     for q in qs_win:
         q['luma'] = band_luma(a.video, (q['start'] + q['end']) / 2)
         q['style'] = 'Ink' if q['luma'] > 150 else 'Light'
@@ -147,7 +151,7 @@ def main():
         print('stills ->', a.out); return
 
     signs = json.load(open(a.signs, encoding='utf-8')) if a.signs else None
-    ass = os.path.join(HERE, 'en.ass'); write_ass(qs_win, ass, a.start, signs, end_t)
+    ass = os.path.join(HERE, 'en.ass'); write_ass(qs_win, ass, a.start, signs, end_t, notes=not a.credits_only)
     delogo, ink = [], {}
     for q in qs_win:
         if not q['mask'] or a.no_mask: continue
@@ -171,9 +175,10 @@ def main():
     if a.audio: cmd += ['-ss', str(a.start), '-i', a.audio]
     if a.dur: cmd += ['-t', str(a.dur)]
     cmd += ['-filter_complex', graph, '-map', '[v]', '-map', '1:a' if a.audio else '0:a?',
-            '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
+            *(['-c:v', 'libx265', '-preset', 'fast', '-b:v', '4000k', '-x265-params', 'log-level=error', '-tag:v', 'hvc1'] if a.hevc
+              else ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18']), '-pix_fmt', 'yuv420p',
             '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
-            '-c:a', 'aac', '-b:a', '320k', '-ar', '48000', '-movflags', '+faststart', a.out]
+            '-c:a', 'aac', '-b:a', '192k' if a.hevc else '320k', '-ar', '48000', '-movflags', '+faststart', a.out]
     subprocess.run(cmd, check=True)
     print('ok', a.out)
 
