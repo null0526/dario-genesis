@@ -1,4 +1,5 @@
-"""逐句生成英文旁白：tts_lines.tsv 的每一行 -> tts/<引擎>-<音色>/<id>.mp3|wav，已存在的跳过。
+"""逐句生成英文旁白：tts_lines.tsv 的每一行 -> tts/<引擎>-<音色>/<id>.mp3|wav。
+每句旁边存 <id>.txt 记下生成时的读法；音频存在且读法没变才跳过，改了译稿的句子会自动重新生成。
 
 用法：
     python tts_gen.py polly Matthew [--until 33]       # Amazon Polly 生成式音色
@@ -99,9 +100,14 @@ def main():
     out = os.path.join(HERE, 'tts', f'{a.engine}-{a.voice}'); os.makedirs(out, exist_ok=True)
     fn = globals()[a.engine]; chars = 0
     for r in rows(a.until):
-        if any(os.path.exists(os.path.join(out, f"{r['id']}.{e}")) for e in ('mp3', 'wav')): continue
+        audio = [os.path.join(out, f"{r['id']}.{e}") for e in ('mp3', 'wav')]
+        side = os.path.join(out, f"{r['id']}.txt")
+        if any(map(os.path.exists, audio)) and os.path.exists(side) and open(side, encoding='utf-8').read() == r['text']: continue
+        for f in audio:
+            if os.path.exists(f): os.remove(f)       # 读法变了或没有记录：旧音频作废
         data, ext = fn(r['text'], a.voice); chars += len(r['text'])
         open(os.path.join(out, f"{r['id']}.{ext}"), 'wb').write(data)
+        open(side, 'w', encoding='utf-8').write(r['text'])
         print(r['id'], len(data), 'bytes', flush=True)
     print(f'done -> {out}，本次 {chars} 字符')
 

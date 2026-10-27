@@ -6,6 +6,7 @@
     python dub.py mix nosub.mp4 --offset 3.0426        # voice_en.wav + ../声音/full-music.wav + 成片片尾原声 -> mix_en.wav
     python dub.py sample nosub.mp4 tts/polly-Matthew --offset 3.0426 --until 33
                                                        # 试听样片：前 33 秒（原成片时间）的配音 + 配乐 + 英文字幕 -> samples/<音色>.mp4
+    python dub.py record voice_en.json alignment.tsv   # 对齐记录：每句目标起点、实际起止、偏差、超窗，末尾附汇总
 
 摆放：每句放在对应中文字幕的起点；放不下（会压到下一句）时先最多提前 0.25 秒起读，再最多加速到 1.12 倍，
 仍放不下就顺延下一句并报告——这种句子应该回 translation.json 改短。
@@ -62,7 +63,7 @@ def voice(tts='tts', out_name='voice_en', until=None):
     qs = [q for q in cues() if until is None or q['start'] < until]; dur = (until + 2) if until else CREDITS + 1
     out = np.zeros(int(dur * SR), np.float32); placed = []; prev_end = 0.0; late = []
     for k, q in enumerate(qs):
-        f = (glob.glob(os.path.join(HERE, tts, q['c'] + '.*')) or [None])[0]
+        f = next((x for e in ('wav', 'mp3') for x in glob.glob(os.path.join(HERE, tts, f"{q['c']}.{e}"))), None)
         assert f, f"缺 {tts}/{q['c']}.wav"
         x = trim(decode(f)); d = len(x) / SR
         win_end = (qs[k + 1]['start'] if k + 1 < len(qs) else min(q['end'] + 2, dur - 0.1)) - GAP
@@ -109,6 +110,27 @@ def mix(film, offset=0.0, voice_name='voice_en', out_name='mix_en', until=None):
     print('\n'.join(l for l in r.splitlines()[-12:] if 'I:' in l or 'Peak:' in l))
 
 
+def record(placed_json, out_tsv):
+    """对齐记录（原成片时间，秒；无字幕版要加 3.0426）。偏差 = 实际起点 - 中文起点；
+    超窗 = 句末超过"下一句中文起点 - GAP"的秒数（摆放器会顺延下一句）。"""
+    placed = json.load(open(os.path.join(HERE, placed_json)))
+    text = {r.split('\t')[0]: r.rstrip('\n').split('\t')[3] for r in open(os.path.join(HERE, 'tts_lines.tsv'), encoding='utf-8').readlines()[1:]}
+    rows, over = [], []
+    for k, p in enumerate(placed):
+        nxt = placed[k + 1]['target'] if k + 1 < len(placed) else None
+        ov = max(0.0, p['end'] - (nxt - GAP)) if nxt is not None else 0.0
+        rows.append((p['c'], p['target'], p['start'], p['end'], p['start'] - p['target'], ov, text.get(p['c'], '')))
+        if ov > 0.02: over.append(ov)
+    d = [r[4] for r in rows]
+    summary = (f"# {len(rows)} 句；起点偏差在 ±0.3 秒内 {sum(abs(x) <= 0.3 for x in d)} 句，最早 {min(d):+.3f}，最晚 {max(d):+.3f}；"
+               f"超窗 {len(over)} 句" + (f"（{min(over):.2f}–{max(over):.2f} 秒）" if over else ''))
+    with open(os.path.join(HERE, out_tsv), 'w', encoding='utf-8', newline='\n') as f:
+        f.write('id\ttarget\tstart\tend\tdelay\toverflow\ttext\n')
+        for r in rows: f.write(f"{r[0]}\t{r[1]:.3f}\t{r[2]:.3f}\t{r[3]:.3f}\t{r[4]:+.3f}\t{r[5]:.3f}\t{r[6]}\n")
+        f.write(summary + '\n')
+    print(summary)
+
+
 def sample(film, tts, offset, until):
     name = os.path.basename(tts.rstrip('/')); os.makedirs(os.path.join(HERE, 'samples'), exist_ok=True)
     voice(tts, f'samples/{name}-voice', until)
@@ -123,10 +145,11 @@ def sample(film, tts, offset, until):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['lines', 'voice', 'mix', 'sample']); ap.add_argument('args', nargs='*')
+    ap.add_argument('cmd', choices=['lines', 'voice', 'mix', 'sample', 'record']); ap.add_argument('args', nargs='*')
     ap.add_argument('--tts', default='tts'); ap.add_argument('--offset', type=float, default=0.0); ap.add_argument('--until', type=float)
     a = ap.parse_args()
     if a.cmd == 'lines': lines()
     elif a.cmd == 'voice': voice(a.tts, until=a.until)
     elif a.cmd == 'mix': mix(a.args[0], a.offset, until=a.until)
+    elif a.cmd == 'record': record(a.args[0], a.args[1])
     else: sample(a.args[0], a.args[1], a.offset, a.until or 33.0)

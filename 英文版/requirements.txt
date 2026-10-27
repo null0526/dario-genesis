@@ -1,0 +1,20 @@
+# 英文版流水线的 Python 依赖（完整锁定，Python 3.13 实测）。生成已发布配音时用的就是这些版本。
+# OCR 盘点（ocr_inventory.py）另需：rapidocr_onnxruntime==1.2.3；Polly 另需 boto3。
+attrs==26.1.0
+cffi==2.1.1
+cloudpickle==3.1.2
+dlinfo==2.0.0
+espeakng-loader==0.2.4
+flatbuffers==25.12.19
+joblib==1.6.0
+kokoro-onnx==0.6.1
+numpy==2.5.3
+onnxruntime==1.29.0
+packaging==26.3
+phonemizer==3.4.0
+protobuf==7.36.1
+pycparser==3.0
+pyloudnorm==0.2.0
+scipy==1.18.1
+soundfile==0.14.0
+typing_extensions==4.16.0

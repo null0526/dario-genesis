@@ -291,12 +291,11 @@ circle wasn't supposed to be round.
 
 65
 00:03:30,152 --> 00:03:33,229
-But mathematician Zu
-Chongzhi illegally probed it
+But Zu Chongzhi illegally probed it
 
 66
 00:03:33,269 --> 00:03:35,050
-and reverse-engineered pi:
+and reverse-engineered an approximation:
 
 67
 00:03:35,129 --> 00:03:37,789
@@ -756,8 +755,7 @@ signals, and our team has completed a review.
 
 167
 00:09:36,330 --> 00:09:39,217
-For violating our Supported
-Regions and Usage Policies,
+For violating our region and usage policies,
 
 168
 00:09:39,444 --> 00:09:42,782

@@ -170,7 +170,8 @@ def main():
         graph += f"[d{len(ink)}]"
     else:
         graph += ','
-    graph += f"ass={ass}[v]"
+    fonts = os.environ.get('FONT_DIR', os.path.join(HERE, 'fonts'))   # setup.sh 下载的 Source Serif 4
+    graph += f"ass=filename={ass}" + (f":fontsdir={fonts}" if os.path.isdir(fonts) else '') + "[v]"
     cmd = ['ffmpeg', '-y', '-v', 'error', '-ss', str(a.start), '-i', a.video]
     if a.audio: cmd += ['-ss', str(a.start), '-i', a.audio]
     if a.dur: cmd += ['-t', str(a.dur)]

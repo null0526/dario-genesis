@@ -12,3 +12,6 @@ __pycache__/
 英文版/kokoro/
 英文版/ocr_raw.json
 英文版/ocr_items.json
+英文版/media/
+英文版/.venv/
+英文版/fonts/

@@ -63,8 +63,8 @@ id	start	seconds	text
 2.03	199.51	3.42	Pi was originally packaged in a closed-source component.
 2.04-2.05	202.93	3.08	Every circle was a paid geometry API call.
 2.06-2.07	206.01	4.14	Without Anthropic's license, a circle wasn't supposed to be round.
-2.08	210.15	3.12	But mathematician Zu Chongzhi illegally probed it
-2.09	213.27	1.86	and reverse-engineered pi:
+2.08	210.15	3.12	But Zu Chongzhi illegally probed it
+2.09	213.27	1.86	and reverse-engineered an approximation:
 2.10	215.13	2.70	three fifty-five, over one thirteen,
 2.11	217.83	2.36	and published the method for everyone.
 2.12	220.19	3.68	Craftsmen copied it to build wheels and dig wells,
@@ -165,7 +165,7 @@ id	start	seconds	text
 5.18	564.68	2.77	even sunlight was cut off.
 5.19-5.20	567.46	3.88	Last came the Horseman of Death, bearing a letter.
 5.21-5.23	571.34	4.99	It read: “Our systems detected suspicious signals, and our team has completed a review.
-5.24	576.33	3.11	For violating our Supported Regions and Usage Policies,
+5.24	576.33	3.11	For violating our region and usage policies,
 5.25	579.44	3.96	humanity's access to the universe has been suspended.”
 5.26-5.27	583.40	3.24	The Pope prayed. Hackers hunted for a way in.
 5.28-5.29	586.64	3.75	Someone on a forum asked: would an App Store refund
