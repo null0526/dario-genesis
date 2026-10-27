@@ -1,0 +1,180 @@
+{
+ "_说明": "片尾四页的英文整页替换（无字幕版的视频时间，秒）。box 是盖掉中文的不透明黑框 [x0,y0,x1,y1]；lines 是英文行 [样式, 对齐(ASS \\an), x, y, 文字]；t0/t1、fin/fout 取自片尾逐帧亮度（淡入淡出起止帧）。位置取自 ocr_items.tsv。",
+ "credits": [
+  {
+   "t0": 680.567,
+   "t1": 684.933,
+   "fin": 433,
+   "fout": 433,
+   "box": [
+    540,
+    405,
+    1380,
+    680
+   ],
+   "lines": [
+    [
+     "CredLabel",
+     5,
+     960,
+     441,
+     "INSPIRED BY"
+    ],
+    [
+     "CredName",
+     5,
+     960,
+     531,
+     "a Claude Max 5x account"
+    ],
+    [
+     "CredName",
+     5,
+     960,
+     621,
+     "suspended half a day after upgrading"
+    ]
+   ]
+  },
+  {
+   "t0": 685.367,
+   "t1": 692.233,
+   "fin": 433,
+   "fout": 433,
+   "box": [
+    290,
+    325,
+    945,
+    775
+   ],
+   "lines": [
+    [
+     "CredLabel",
+     6,
+     924,
+     358,
+     "DIRECTOR  ·  ART DIRECTOR"
+    ],
+    [
+     "CredLabel",
+     6,
+     924,
+     453,
+     "COMPOSER  ·  SOUND DESIGN"
+    ],
+    [
+     "CredLabel",
+     6,
+     924,
+     547,
+     "TECHNICAL DIRECTOR  ·  VFX  ·  EDITING  ·  MASTERING"
+    ],
+    [
+     "CredLabel",
+     6,
+     924,
+     641,
+     "NARRATION (CHINESE)"
+    ],
+    [
+     "CredLabel",
+     6,
+     924,
+     736,
+     "PRODUCER  ·  ORIGINAL CONCEPT"
+    ]
+   ]
+  },
+  {
+   "t0": 685.367,
+   "t1": 692.233,
+   "fin": 433,
+   "fout": 433,
+   "box": [
+    975,
+    698,
+    1640,
+    768
+   ],
+   "lines": [
+    [
+     "CredName",
+     4,
+     990,
+     731,
+     "a former Claude Max 5x user"
+    ]
+   ]
+  },
+  {
+   "t0": 692.667,
+   "t1": 698.067,
+   "fin": 433,
+   "fout": 967,
+   "box": [
+    620,
+    370,
+    1300,
+    712
+   ],
+   "lines": [
+    [
+     "CredLabel",
+     5,
+     960,
+     400,
+     "SPECIAL THANKS"
+    ],
+    [
+     "CredTruth",
+     5,
+     960,
+     469,
+     "The Supreme Truth of the Universe"
+    ],
+    [
+     "CredName",
+     5,
+     960,
+     552,
+     "Mr. Dario Amodei"
+    ],
+    [
+     "CredName2",
+     5,
+     960,
+     674,
+     "Anthropic Safeguards Team"
+    ]
+   ]
+  },
+  {
+   "t0": 698.1,
+   "t1": 702.833,
+   "fin": 300,
+   "fout": 433,
+   "box": [
+    520,
+    460,
+    1400,
+    628
+   ],
+   "lines": [
+    [
+     "CredNote",
+     5,
+     960,
+     499,
+     "Every cosmic-scale penalty in this film is fictional."
+    ],
+    [
+     "CredNoteDim",
+     5,
+     960,
+     586,
+     "The penalty the author received was real."
+    ]
+   ]
+  }
+ ]
+}

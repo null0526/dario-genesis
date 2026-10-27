@@ -5,3 +5,13 @@ keyframes.jpg
 stills/
 __pycache__/
 最小示例/tts/
+英文版/tts/
+英文版/en.ass
+英文版/voice_en.json
+英文版/samples/
+英文版/kokoro/
+英文版/ocr_raw.json
+英文版/ocr_items.json
+英文版/media/
+英文版/.venv/
+英文版/fonts/
